@@ -1771,6 +1771,130 @@ namespace OctoshiftCLI.Tests
             actualMigrationId.Should().Be(expectedMigrationId);
         }
 
+        [Fact]
+        public async Task GetCodeScanningAnalysisData()
+        {
+            // Arrange
+            const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses?per_page=100";
+
+            var tfsecCodeScanning = $@"
+                {{
+                    ""ref"": ""refs/heads/sg-tfsec-test"",
+                    ""commit_sha"": ""25cb837876685f98756d0c934ffe6cd09da570f8"",
+                    ""analysis_key"": "".github/workflows/tfsec.yml:tfsec"",
+                    ""environment"": ""{{}}"",
+                    ""category"": "".github/workflows/tfsec.yml:tfsec"",
+                    ""error"": """",
+                    ""created_at"": ""2022-08-08T19:00:18Z"",
+                    ""results_count"": 0,
+                    ""rules_count"": 0,
+                    ""id"": 38200197,
+                    ""url"": ""https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses/38200197"",
+                    ""sarif_id"": ""57d59784-174c-11ed-9b6f-f4a3e9f6301b"",
+                    ""tool"": {{
+                        ""name"": ""tfsec"",
+                        ""guid"": null,
+                        ""version"": null
+                    }},
+                    ""deletable"": true,
+                    ""warning"": """"
+                }}
+            ";
+
+            var codeQLCodeScanning1 = $@"
+                {{
+                    ""ref"": ""refs/heads/main"",
+                    ""commit_sha"": ""67f8626e1f3ca40e9678e1dcfc4f840009ffc260"",
+                    ""analysis_key"": "".github/workflows/codeql.yml:analyze"",
+                    ""environment"": ""{{\""language\"":\""javascript\""}}"",
+                    ""category"": "".github/workflows/codeql.yml:analyze/language:javascript"",
+                    ""error"": """",
+                    ""created_at"": ""2022-08-06T19:40:39Z"",
+                    ""results_count"": 956,
+                    ""rules_count"": 202,
+                    ""id"": 38026365,
+                    ""url"": ""https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses/38026365"",
+                    ""sarif_id"": ""a5b745ee-15bf-11ed-9399-5b06f5cd9458"",
+                    ""tool"": {{
+                        ""name"": ""CodeQL"",
+                        ""guid"": null,
+                        ""version"": ""2.10.1""
+                    }},
+                    ""deletable"": true,
+                    ""warning"": """"
+                }}
+            ";
+            
+            var codeQLCodeScanning2 = $@"
+                {{
+                    ""ref"": ""refs/heads/main"",
+                    ""commit_sha"": ""67f8626e1f3ca40e9678e1dcfc4f840009ffc260"",
+                    ""analysis_key"": "".github/workflows/codeql.yml:analyze"",
+                    ""environment"": ""{{\""language\"":\""java\""}}"",
+                    ""category"": "".github/workflows/codeql.yml:analyze/language:javascript"",
+                    ""error"": """",
+                    ""created_at"": ""2022-08-06T19:30:25Z"",
+                    ""results_count"": 116,
+                    ""rules_count"": 200,
+                    ""id"": 38025984,
+                    ""url"": ""https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses/38025984"",
+                    ""sarif_id"": ""37e07636-15be-11ed-8a01-f4546b5d2175"",
+                    ""tool"": {{
+                        ""name"": ""CodeQL"",
+                        ""guid"": null,
+                        ""version"": ""2.10.1""
+                    }},
+                    ""deletable"": true,
+                    ""warning"": """"
+                }}
+            ";
+            
+            var responsePage1 = $@"
+                [
+                    {tfsecCodeScanning},
+                    {codeQLCodeScanning1}
+                ]
+            ";
+
+            var responsePage2 = $@"
+                [
+                    {codeQLCodeScanning2}
+                ]
+            ";
+            
+            async IAsyncEnumerable<JToken> GetAllPages()
+            {
+                var jArrayPage1 = JArray.Parse(responsePage1);
+                yield return jArrayPage1[0];
+                yield return jArrayPage1[1];
+
+                var jArrayPage2 = JArray.Parse(responsePage2);
+                yield return jArrayPage2[0];
+
+                await Task.CompletedTask;
+            }
+
+            _githubClientMock
+                .Setup(m => m.GetAllAsync(url))
+                .Returns(GetAllPages);
+            
+            // Act
+            var scanResults = await _githubApi.GetCodeScanningAnalysis(GITHUB_ORG, GITHUB_REPO);
+            
+            // Assert
+            scanResults.Count().Should().Be(3);
+            var scanResultsArray = scanResults.ToArray();
+
+            var expectedData = JObject.Parse(tfsecCodeScanning);
+            scanResultsArray[0].Id.Should().Be((int)expectedData["id"]);
+
+            expectedData = JObject.Parse(codeQLCodeScanning1);
+            scanResultsArray[1].Id.Should().Be((int)expectedData["id"]);
+            
+            expectedData = JObject.Parse(codeQLCodeScanning2);
+            scanResultsArray[2].Id.Should().Be((int)expectedData["id"]);
+        }
+
         private string Compact(string source) =>
             source
                 .Replace("\r", "")

@@ -574,6 +574,14 @@ namespace OctoshiftCLI
             return data.ToObject<MannequinReclaimResult>();
         }
 
+        public virtual async Task<IEnumerable<CodeScanningAnalysis>> GetCodeScanningAnalysis(string org, string repo)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/analyses?per_page=100";
+            return await _client.GetAllAsync(url)
+                .Select(codescan => BuildCodeScanningAnalysis(codescan))
+                .ToListAsync();
+        }
+        
         private static object GetMannequinsPayload(string orgId)
         {
             var query = "query($id: ID!, $first: Int, $after: String)";
@@ -629,5 +637,36 @@ namespace OctoshiftCLI
                 throw new OctoshiftCliException($"{errorMessage ?? "UNKNOWN"}");
             }
         }
+
+        private static CodeScanningAnalysis BuildCodeScanningAnalysis(JToken codescan) =>
+            new CodeScanningAnalysis
+            {
+                Id = (int)codescan["id"], 
+                SarifId = (string)codescan["sarif_id"],
+                CommitSha = (string)codescan["commit_sha"],
+                Ref = (string)codescan["ref"],
+                AnalysisKey = (string)codescan["analysis_key"],
+                Error = (string)codescan["error"],
+                Warning = (string)codescan["warning"],
+                Url = (string)codescan["url"],
+                CreatedAt = (string)codescan["created_at"],
+                ResultsCount = (int)codescan["results_count"],
+                RulesCount = (int)codescan["rules_count"],
+                Deletable = (bool)codescan["deletable"],
+                Environment = codescan["environment"].Any()
+                    ? new CodeScanningEnvironment
+                    {
+                        Language = (string)codescan["environment"]["language"]
+                    }
+                    : null,
+                Tool = codescan["tool"].Any()
+                    ? new CodeScanningTool
+                    {
+                        Name = (string)codescan["tool"]["name"],
+                        Guid = (string)codescan["tool"]["guid"],
+                        Version = (string)codescan["tool"]["version"]
+                    }
+                    : null,
+            };
     }
 }

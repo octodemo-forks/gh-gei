@@ -574,14 +574,58 @@ namespace OctoshiftCLI
             return data.ToObject<MannequinReclaimResult>();
         }
 
-        public virtual async Task<IEnumerable<CodeScanningAnalysis>> GetCodeScanningAnalysis(string org, string repo)
+        public virtual async Task<IEnumerable<CodeScanningAnalysis>> GetCodeScanningAnalysisForRepository(string org, string repo)
         {
             var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/analyses?per_page=100";
             return await _client.GetAllAsync(url)
                 .Select(codescan => BuildCodeScanningAnalysis(codescan))
                 .ToListAsync();
         }
+
+        public virtual async Task<IEnumerable<SecretScanningAlert>> GetSecretScanningAlertsForRepository(string org, string repo)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/secret-scanning/alerts?per_page=100";
+            return await _client.GetAllAsync(url)
+                .Select(secretAlert => BuildSecretScanningAlert(secretAlert))
+                .ToListAsync();
+        }
         
+        public virtual async Task<IEnumerable<SecretScanningAlertLocation>> GetSecretScanningAlertsLocations(string org, string repo, int alertNumber)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/secret-scanning/alerts/{alertNumber}/locations?per_page=100";
+            return await _client.GetAllAsync(url)
+                .Select(alertLocation => BuildSecretScanningAlertLocation(alertLocation))
+                .ToListAsync();
+        }
+        
+        public virtual async Task UpdateSecretScanningAlert(string org, string repo, int alertNumber, string state, string resolution)
+        {
+            // Must be one of "open" or "resolved"
+            if (string.IsNullOrWhiteSpace(state))
+            {
+                throw new ArgumentException($"Invalid value for {nameof(state)}");
+            }
+            
+            // We must provide a resolution when state is "resolved" which is one of "false_positive", "wont_fix", "revoked" or "used_in_tests"
+            if (state == "resolved" && string.IsNullOrWhiteSpace(resolution))
+            {
+                throw new ArgumentException($"Invalid value for {nameof(resolution)}");
+            }
+            
+            var url = $"{_apiUrl}/repos/{org}/{repo}/secret-scanning/alerts/{alertNumber}";
+
+            dynamic payload;
+            if (state == "open")
+            {
+                payload = new { state };
+            }
+            else
+            {
+                payload = new { state, resolution };
+            }
+            await _client.PatchAsync(url, payload);
+        }
+
         private static object GetMannequinsPayload(string orgId)
         {
             var query = "query($id: ID!, $first: Int, $after: String)";
@@ -641,7 +685,7 @@ namespace OctoshiftCLI
         private static CodeScanningAnalysis BuildCodeScanningAnalysis(JToken codescan) =>
             new CodeScanningAnalysis
             {
-                Id = (int)codescan["id"], 
+                Id = (int)codescan["id"],
                 SarifId = (string)codescan["sarif_id"],
                 CommitSha = (string)codescan["commit_sha"],
                 Ref = (string)codescan["ref"],
@@ -654,10 +698,7 @@ namespace OctoshiftCLI
                 RulesCount = (int)codescan["rules_count"],
                 Deletable = (bool)codescan["deletable"],
                 Environment = codescan["environment"].Any()
-                    ? new CodeScanningEnvironment
-                    {
-                        Language = (string)codescan["environment"]["language"]
-                    }
+                    ? new CodeScanningEnvironment { Language = (string)codescan["environment"]["language"] }
                     : null,
                 Tool = codescan["tool"].Any()
                     ? new CodeScanningTool
@@ -667,6 +708,40 @@ namespace OctoshiftCLI
                         Version = (string)codescan["tool"]["version"]
                     }
                     : null,
+            };
+
+        private static SecretScanningAlert BuildSecretScanningAlert(JToken secretAlert) =>
+            new SecretScanningAlert { 
+                Number = (int)secretAlert["number"],
+                CreatedAt = (string)secretAlert["created_at"],
+                Url = (string)secretAlert["url"],
+                State = (string)secretAlert["state"],
+                Resolution = (string)secretAlert["resolution"],
+                ResolvedAt = (string)secretAlert["resolved_at"],
+                ResolvedBy = secretAlert["resolved_by"].Any() ? (string)secretAlert["resolved_by"]["login"] : null,
+                SecretType = (string)secretAlert["secret_type"],
+                SecretTypeDisplayName = (string)secretAlert[""],
+                Secret = (string)secretAlert[""],
+                PushProtectionBypassed = (bool)secretAlert["push_protection_bypassed"],
+                PushProtectionBypassedAt = (string)secretAlert["push_protection_bypassed_at"],
+                PushProtectionBypassedBy = secretAlert["push_protection_bypassed_by"].Any() ? (string)secretAlert["push_protection_bypassed_by"]["login"]: null,
+            };
+        
+        private static SecretScanningAlertLocation BuildSecretScanningAlertLocation(JToken alertLocation) =>
+            new SecretScanningAlertLocation {
+                Type = (string)alertLocation["type"],
+                Details = new SecretScanningAlertLocationDetails
+                {
+                    Path = (string)alertLocation["details"]["path"],
+                    StartLine = (int)alertLocation["details"]["start_line"],
+                    EndLine = (int)alertLocation["details"]["end_line"],
+                    StartColumn = (int)alertLocation["details"]["start_column"],
+                    EndColumn = (int)alertLocation["details"]["end_column"],
+                    BlobSha = (string)alertLocation["details"]["blob_sha"],
+                    BlobUrl = (string)alertLocation["details"]["blob_url"],
+                    CommitSha = (string)alertLocation["details"]["commit_sha"],
+                    CommitUrl = (string)alertLocation["details"]["commit_url"],
+                }
             };
     }
 }

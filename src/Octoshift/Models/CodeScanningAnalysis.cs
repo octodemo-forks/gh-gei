@@ -1,5 +1,3 @@
-using System;
-
 namespace Octoshift.Models
 {
     public class CodeScanningAnalysis

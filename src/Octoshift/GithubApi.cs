@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Octoshift.Models;
@@ -581,6 +582,39 @@ namespace OctoshiftCLI
                 .Select(codescan => BuildCodeScanningAnalysis(codescan))
                 .ToListAsync();
         }
+        
+        public virtual async Task UpdateCodeScanningAlert(string org, string repo, int alertNumber, string state, string dismissedReason = null, string dismissedComment = null)
+        {
+            // state must be one of "open" or "dismissed"
+            if (string.IsNullOrWhiteSpace(state))
+            {
+                throw new ArgumentException($"Invalid value for {nameof(state)}");
+            }
+            
+            // We must provide a reason when state is "dismissed" which is one of "false_positive", "wont_fix" or "used_in_tests"
+            if (state == "dismissed" && string.IsNullOrWhiteSpace(dismissedReason))
+            {
+                throw new ArgumentException($"Invalid value for {nameof(dismissedReason)}");
+            }
+            
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/alerts/{alertNumber}";
+
+            dynamic payload;
+            if (state == "open")
+            {
+                payload = new { state };
+            }
+            else
+            {
+                payload = new
+                {
+                    state,
+                    dismissed_reason = dismissedReason,
+                    dismissedComment = dismissedComment
+                };
+            }
+            await _client.PatchAsync(url, payload);
+        }
 
         public virtual async Task<IEnumerable<SecretScanningAlert>> GetSecretScanningAlertsForRepository(string org, string repo)
         {
@@ -598,7 +632,7 @@ namespace OctoshiftCLI
                 .ToListAsync();
         }
         
-        public virtual async Task UpdateSecretScanningAlert(string org, string repo, int alertNumber, string state, string resolution)
+        public virtual async Task UpdateSecretScanningAlert(string org, string repo, int alertNumber, string state, string resolution = null)
         {
             // Must be one of "open" or "resolved"
             if (string.IsNullOrWhiteSpace(state))
@@ -624,6 +658,13 @@ namespace OctoshiftCLI
                 payload = new { state, resolution };
             }
             await _client.PatchAsync(url, payload);
+        }
+
+        public virtual async Task<string> GetSarifReport(string org, string repo, int analysisId)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/analyses/{analysisId}";
+            // Need change the Accept header to application/sarif+json otherwise it will just be the analysis record
+            return await _client.GetAsyncWithAcceptHeader(url, "application/sarif+json");
         }
 
         private static object GetMannequinsPayload(string orgId)

@@ -2196,10 +2196,78 @@ namespace OctoshiftCLI.Tests
             var payload = new { state = alertState };
 
             // Act
-            await _githubApi.UpdateSecretScanningAlert(GITHUB_ORG, GITHUB_REPO, alertNumber, alertState, null);
+            await _githubApi.UpdateSecretScanningAlert(GITHUB_ORG, GITHUB_REPO, alertNumber, alertState);
 
             // Assert
             _githubClientMock.Verify(m => m.PatchAsync(url, It.Is<object>(x => x.ToJson() == payload.ToJson())));
+        }
+        
+        [Fact]
+        public async Task UpdateCodeScanningAlert_Calls_The_Right_Endpoint_With_Payload_For_Open_State()
+        {
+            // Arrange
+            const int alertNumber = 2;
+            const string state = "open";
+
+            var url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/alerts/{alertNumber}";
+            var payload = new { state };
+
+            // Act
+            await _githubApi.UpdateCodeScanningAlert(GITHUB_ORG, GITHUB_REPO, alertNumber, state);
+
+            // Assert
+            _githubClientMock.Verify(m => m.PatchAsync(url, It.Is<object>(x => x.ToJson() == payload.ToJson())));
+        }
+        
+        [Fact]
+        public async Task GetSarifReport_For_Third_Party_Scanning_Tool()
+        {
+            // Arrange
+            const int analysisId = 37019295;
+            var url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses/{analysisId}";
+            
+            var response = $@"
+            {{
+	            ""runs"": [
+		            {{
+			            ""automationDetails"": {{
+				            ""id"": "".github/workflows/semgrep-analysis.yml:semgrep/""
+			            }},
+			            ""conversion"": {{
+				            ""tool"": {{
+					            ""driver"": {{
+						            ""name"": ""GitHub Code Scanning""
+					            }}
+				            }}
+			            }},
+			            ""tool"": {{
+				            ""driver"": {{
+					            ""name"": ""Semgrep"",
+					            ""semanticVersion"": ""0.106.0""
+				            }}
+			            }},
+			            ""versionControlProvenance"": [
+				            {{
+					            ""branch"": ""refs/heads/test-enhanced-codeql-workflow"",
+					            ""repositoryUri"": ""https://github.com/octodemo/demo-vulnerabilities-ghas"",
+					            ""revisionId"": ""235f50cc268427e72ea610e75b278edf89db2857""
+				            }}
+			            ]
+		            }}
+	            ],
+	            ""$schema"": ""https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"",
+	            ""version"": ""2.1.0""
+            }}";
+
+            _githubClientMock
+                .Setup(m => m.GetAsyncWithAcceptHeader(url, "application/sarif+json"))
+                .ReturnsAsync(response);
+            
+            // Act
+            var result = await _githubApi.GetSarifReport(GITHUB_ORG, GITHUB_REPO, analysisId);
+
+            // Assert
+            result.Should().Match(response);
         }
         
         private string Compact(string source) =>

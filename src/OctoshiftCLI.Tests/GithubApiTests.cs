@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using Newtonsoft.Json.Linq;
+using Octoshift;
 using Octoshift.Models;
 using OctoshiftCLI.Extensions;
 using Xunit;
@@ -2268,6 +2269,32 @@ namespace OctoshiftCLI.Tests
 
             // Assert
             result.Should().Match(response);
+        }
+        
+        [Fact]
+        public async Task UploadSarif_Constructs_Correct_Payload()
+        {
+        
+            // Arrange
+            const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/sarifs";
+            var sarifContainer = new SarifContainer()
+            {
+                Ref = "refs/heads/main", CommitSha = "fake_commit_sha", sarif = "fake_gzip_sarif"
+            };
+            
+            var expectedPayload = new {
+                owner = GITHUB_ORG,
+                repo = GITHUB_REPO,
+                commit_sha = sarifContainer.CommitSha,
+                sarif = StringCompressor.GZipAndBase64String(sarifContainer.sarif),
+                @ref = sarifContainer.Ref
+            };
+
+            // Act
+            await _githubApi.UploadSarifReport(GITHUB_ORG, GITHUB_REPO, sarifContainer);
+
+            // Assert
+            _githubClientMock.Verify(m => m.PostAsync(url, It.Is<object>(x => x.ToJson() == expectedPayload.ToJson())));
         }
         
         private string Compact(string source) =>

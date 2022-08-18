@@ -1,11 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using Octoshift;
 using Octoshift.Models;
 using OctoshiftCLI.Extensions;
 using OctoshiftCLI.Models;
@@ -666,6 +670,25 @@ namespace OctoshiftCLI
             // Need change the Accept header to application/sarif+json otherwise it will just be the analysis record
             return await _client.GetAsyncWithAcceptHeader(url, "application/sarif+json");
         }
+        
+        public virtual async Task<string> UploadSarifReport(string org, string repo, SarifContainer sarifContainer)
+        {
+            if(sarifContainer == null)
+            {
+                throw new ArgumentNullException(nameof(sarifContainer));
+            }
+            
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/sarifs";
+            var payload = new {
+                owner = org,
+                repo,
+                commit_sha = sarifContainer.CommitSha,
+                sarif = StringCompressor.GZipAndBase64String(sarifContainer.sarif),
+                @ref = sarifContainer.Ref
+            };
+            // Need change the Accept header to application/sarif+json otherwise it will just be the analysis record
+            return await _client.PostAsync(url, payload);
+        }
 
         private static object GetMannequinsPayload(string orgId)
         {
@@ -784,5 +807,6 @@ namespace OctoshiftCLI
                     CommitUrl = (string)alertLocation["details"]["commit_url"],
                 }
             };
+        
     }
 }

@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -129,8 +130,8 @@ namespace OctoshiftCLI
             {
                 _log.LogVerbose($"HTTP BODY: {body.ToJson()}");
                 
-                using var payload = body.ToJson().ToStringContent();
-                request.Content = JsonContent.Create(payload);
+                var payload = body.ToJson();
+                request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
             }
             
             using var response = await _httpClient.SendAsync(request);

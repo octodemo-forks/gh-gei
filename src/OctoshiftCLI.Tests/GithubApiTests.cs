@@ -2152,6 +2152,9 @@ namespace OctoshiftCLI.Tests
             actual.State.Should().Be((string)expectedData["state"]);
             actual.SecretType.Should().Be((string)expectedData["secret_type"]);
             actual.Resolution.Should().Be((string)expectedData["resolution"]);
+            actual.Secret.Should().Be((string)expectedData["secret"]);
+            actual.SecretTypeDisplayName.Should().Be((string)expectedData["secret_type_display_name"]);
+            
             if (expectedData["resolved_by"].Any())
             {
                 var resolvedByLogin = (string)expectedData["resolved_by"]["login"]; 

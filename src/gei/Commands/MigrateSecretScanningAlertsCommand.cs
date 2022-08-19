@@ -1,14 +1,12 @@
 using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Octoshift;
 using OctoshiftCLI.Extensions;
 
 namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
 {
- 
     public class MigrateSecretScanningAlertsCommand : Command
     {
         private readonly OctoLogger _log;
@@ -16,9 +14,6 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
         private readonly ITargetGithubApiFactory _targetGithubApiFactory;
         
         private readonly EnvironmentVariableProvider _environmentVariableProvider;
-        private const int ARCHIVE_GENERATION_TIMEOUT_IN_HOURS = 10;
-        private const int CHECK_STATUS_DELAY_IN_MILLISECONDS = 10000; // 10 seconds
-        private const string DEFAULT_GITHUB_BASE_URL = "https://github.com";
 
         public MigrateSecretScanningAlertsCommand(OctoLogger log, ISourceGithubApiFactory sourceGithubApiFactory, ITargetGithubApiFactory targetGithubApiFactory, EnvironmentVariableProvider environmentVariableProvider) : base("migrate-secret-alerts")
         {

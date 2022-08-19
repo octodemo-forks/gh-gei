@@ -788,13 +788,10 @@ namespace OctoshiftCLI
             
             var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/sarifs";
             var payload = new {
-                owner = org,
-                repo,
                 commit_sha = sarifContainer.CommitSha,
                 sarif = StringCompressor.GZipAndBase64String(sarifContainer.sarif),
                 @ref = sarifContainer.Ref
             };
-            // Need change the Accept header to application/sarif+json otherwise it will just be the analysis record
             return await _client.PostAsync(url, payload);
         }
 

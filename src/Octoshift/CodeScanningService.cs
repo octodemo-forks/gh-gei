@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Octoshift.Models;
 using OctoshiftCLI;
@@ -24,7 +26,7 @@ namespace Octoshift
         {
             _log.LogInformation($"Migrating Code Scanning Analyses from '{sourceOrg}/{sourceRepo}' to '{targetOrg}/{targetRepo}'");
             var analyses = await _sourceGithubApi.GetCodeScanningAnalysisForRepository(sourceOrg, sourceRepo);
-            var count = 0;
+            var successCount = 0;
             var errorCount = 0;
             
             analyses = analyses.OrderBy(a => a.CreatedAt).ToList();
@@ -38,18 +40,32 @@ namespace Octoshift
                 {
                     await _targetGithubApi.UploadSarifReport(targetOrg, targetRepo,
                         new SarifContainer { sarif = sarifReport, Ref = analysis.Ref, CommitSha = analysis.CommitSha });
-                    count++;
+                    ++successCount;
                     _log.LogInformation($"Successfully Migrated report for analysis {analysis.Id}");
+                }
+                catch (HttpRequestException httpException)
+                {
+                    if (httpException.StatusCode.Equals(HttpStatusCode.NotFound)) 
+                    {
+                      _log.LogVerbose($"No commit found on target. Skipping Analysis {analysis.Id}");  
+                    } 
+                    else 
+                    {
+                        _log.LogWarning($"Http Error {httpException.StatusCode} while migrating analysis {analysis.Id}: ${httpException.Message}");
+                    }
+                    ++errorCount;
                 }
                 catch (Exception exception)
                 {
-                    _log.LogWarning($"Error while uploading SARIF report for analysis {analysis.Id}: \n {exception.Message}");
+                    _log.LogWarning($"Fatal Error while uploading SARIF report for analysis {analysis.Id}: \n {exception.Message}");
                     _log.LogError(exception);
-                    errorCount++;
+                    // Todo Maybe throw another exception here?
+                    throw exception;
                 }
-                
-                _log.LogInformation($"Code Scanning Analyses done!\nSuccess-Count: {count}\nError-Count: {errorCount}\nOverall: {analyses.Count()}.");
+                _log.LogInformation($"Handled {successCount + errorCount} / {analyses.Count()} Analyses.");
             }
+            
+            _log.LogInformation($"Code Scanning Analyses done!\nSuccess-Count: {successCount}\nError-Count: {errorCount}\nOverall: {analyses.Count()}.");
         }
     }
 

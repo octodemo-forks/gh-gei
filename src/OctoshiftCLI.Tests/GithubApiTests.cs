@@ -2441,8 +2441,6 @@ namespace OctoshiftCLI.Tests
             };
             
             var expectedPayload = new {
-                owner = GITHUB_ORG,
-                repo = GITHUB_REPO,
                 commit_sha = sarifContainer.CommitSha,
                 sarif = StringCompressor.GZipAndBase64String(sarifContainer.sarif),
                 @ref = sarifContainer.Ref

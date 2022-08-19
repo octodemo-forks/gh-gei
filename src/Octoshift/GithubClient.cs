@@ -39,7 +39,8 @@ namespace OctoshiftCLI
 
         public virtual async Task<string> GetAsync(string url) => (await SendAsync(HttpMethod.Get, url)).Content;
         
-        public virtual async Task<string> GetAsyncWithAcceptHeader(string url, string accept) => (await SendAsync(HttpMethod.Get, url, accept)).Content;
+        public virtual async Task<string> GetAsyncWithAcceptHeader(string url, string accept) => (await SendAsync(
+            httpMethod: HttpMethod.Get, url: url, acceptHeader: accept)).Content;
 
         public virtual async IAsyncEnumerable<JToken> GetAllAsync(string url)
         {

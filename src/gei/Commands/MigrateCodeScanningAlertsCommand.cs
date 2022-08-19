@@ -18,14 +18,14 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
         private readonly EnvironmentVariableProvider _environmentVariableProvider;
         private const string DEFAULT_GITHUB_BASE_URL = "https://github.com";
 
-        public MigrateCodeScanningAlertsCommand(OctoLogger log, ISourceGithubApiFactory sourceGithubApiFactory, ITargetGithubApiFactory targetGithubApiFactory, EnvironmentVariableProvider environmentVariableProvider) : base("migrate-secret-alerts")
+        public MigrateCodeScanningAlertsCommand(OctoLogger log, ISourceGithubApiFactory sourceGithubApiFactory, ITargetGithubApiFactory targetGithubApiFactory, EnvironmentVariableProvider environmentVariableProvider) : base("migrate-code-scanning-alerts")
         {
             _log = log;
             _sourceGithubApiFactory = sourceGithubApiFactory;
             _targetGithubApiFactory = targetGithubApiFactory;
             _environmentVariableProvider = environmentVariableProvider;
 
-            Description = "Invokes the GitHub APIs to migrate repo secret scanning alert data.";
+            Description = "Invokes the GitHub APIs to migrate repo code scanning alert data.";
 
             var githubSourceOrg = new Option<string>("--github-source-org")
             {
@@ -108,11 +108,7 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
 
             var migrationService = new CodeScanningService(sourceGitHubApi, targetGithubApi, _log);
 
-            await migrationService.MigrateAnalyses(
-                args.GithubSourceOrg, 
-                args.SourceRepo,
-                args.GithubTargetOrg,
-                args.TargetRepo);
+            await migrationService.MigrateAnalyses( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo);
             
             _log.LogSuccess($"Code Scanning results completed.");
         }

@@ -72,6 +72,11 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
             {
                 IsRequired = false
             };
+            var dryRun = new Option("--dry-run")
+            {
+                IsRequired = false,
+                Description = "Execute in dry run mode to see what secrets will be matched and changes applied, but do not make any actual changes."
+            };
 
             AddOption(githubSourceOrg);
             AddOption(sourceRepo);
@@ -85,6 +90,7 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
             AddOption(githubSourcePat);
             AddOption(githubTargetPat);
             AddOption(verbose);
+            AddOption(dryRun);
 
             Handler = CommandHandler.Create<MigrateSecretScanningAlertsCommandArgs>(Invoke);
         }
@@ -104,13 +110,12 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
             var targetGithubApi = _targetGithubApiFactory.Create(args.TargetApiUrl, args.GithubTargetPat);
 
             var migrationService = new SecretScanningAlertService(sourceGitHubApi, targetGithubApi, _log);
-
-
             await migrationService.MigrateSecretScanningAlerts(
                 args.GithubSourceOrg, 
                 args.SourceRepo,
                 args.GithubTargetOrg,
-                args.TargetRepo);
+                args.TargetRepo,
+                args.DryRun);
             
             _log.LogSuccess($"Secret Scanning results completed.");
         }
@@ -165,6 +170,11 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
             {
                 _log.LogInformation("SSL verification disabled");
             }
+            
+            if (args.DryRun)
+            {
+                _log.LogInformation("Executing in Dry Run mode, no changes will be made.");
+            }
         }
     }
 
@@ -178,6 +188,7 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
         public string GhesApiUrl { get; set; }
         public bool NoSslVerify { get; set; }
         public bool Verbose { get; set; }
+        public bool DryRun { get; set; }
         public string GithubSourcePat { get; set; }
         public string GithubTargetPat { get; set; }
     }

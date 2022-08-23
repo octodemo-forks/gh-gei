@@ -20,15 +20,15 @@ namespace Octoshift
         }
 
         public virtual async Task MigrateSecretScanningAlerts(string sourceOrg, string sourceRepo, string targetOrg,
-            string targetRepo)
+            string targetRepo, bool dryRun)
         {
             _log.LogInformation($"Migrating Secret Scanning Alerts from '{sourceOrg}/{sourceRepo}' to '{targetOrg}/{targetRepo}'");
 
             var sourceAlerts = await GetAlertsWithLocations(_sourceGithubApi, sourceOrg, sourceRepo);
             var targetAlerts = await GetAlertsWithLocations(_targetGithubApi, targetOrg, targetRepo);
             
-            _log.LogInformation($"Source secret alerts found: {sourceAlerts.Count}");
-            _log.LogInformation($"Target secret alerts found: {targetAlerts.Count}");
+            _log.LogInformation($"Source {sourceOrg}/{sourceRepo} secret alerts found: {sourceAlerts.Count}");
+            _log.LogInformation($"Target {targetOrg}/{targetRepo} secret alerts found: {targetAlerts.Count}");
             
             _log.LogInformation("Matching secret resolutions from source to target repository");
             foreach (var alert in sourceAlerts)
@@ -42,25 +42,31 @@ namespace Octoshift
 
                     if (target == null)
                     {
-                        _log.LogWarning($"Failed to locate a matching target secret to record a resolution for source secret {alert.Alert.Number}");
+                        _log.LogWarning($"Failed to locate a matching secret to source secret {alert.Alert.Number} in {targetOrg}/{targetRepo}");
                     }
                     else
                     {
-                        _log.LogInformation($"Matched alert to the target repository");
+                        _log.LogInformation($"Source secret alert matched alert to {target.Alert.Number} in {targetOrg}/{targetRepo}.");
 
                         if (alert.Alert.Resolution == target.Alert.Resolution
                             && alert.Alert.State == target.Alert.State)
                         {
-                            _log.LogSuccess("Source and Target Alerts are aligned already.");                            
+                            _log.LogSuccess("Source and Target Alerts are already aligned.");                            
                         }
                         else
                         {
                             _log.LogInformation($"Updating target alert:{target.Alert.Number} to state:{alert.Alert.State} and resolution:{alert.Alert.Resolution}");
 
-                            await _targetGithubApi.UpdateSecretScanningAlert(targetOrg, targetRepo, target.Alert.Number,
-                                alert.Alert.State, alert.Alert.Resolution);
-                        
-                            _log.LogSuccess($"Source and Target Alert state and resolution have been aligned.");    
+                            if (dryRun)
+                            {
+                                _log.LogInformation($"executing in dry run mode! Secret Alert, {target.Alert.Number}, in repository {targetOrg}/{targetRepo} would have been updated to resolution, {alert.Alert.Resolution}");
+                            }
+                            else
+                            {
+                                await _targetGithubApi.UpdateSecretScanningAlert(targetOrg, targetRepo, target.Alert.Number,
+                                    alert.Alert.State, alert.Alert.Resolution);
+                                _log.LogSuccess($"Source and Target Alert state and resolution have been aligned to {alert.Alert.Resolution}.");
+                            }   
                         }
                     }
                 }
@@ -70,11 +76,6 @@ namespace Octoshift
                 }
                 _log.LogInformation($"");
             }
-
-            
-            //TODO
-            
-            _log.LogSuccess("Much happy all done!");
         }
 
         private AlertWithLocations MatchTargetSecret(AlertWithLocations source, List<AlertWithLocations> targets)
@@ -128,7 +129,7 @@ namespace Octoshift
                     && sourceDetails.StartColumn == targetDetails.StartColumn
                     && sourceDetails.EndColumn == targetDetails.EndColumn
                     && sourceDetails.BlobSha == targetDetails.BlobSha)
-                    // Technically this wil hold, but only if there is not commmit rewriting going on, so we need to make this last one optional
+                    // Technically this wil hold, but only if there is not commmit rewriting going on, so we need to make this last one optional for now
                     // && sourceDetails.CommitSha == targetDetails.CommitSha)
                 {
                     return true;

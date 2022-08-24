@@ -41,7 +41,8 @@ public class CodeScanningServiceTest
                 CommitSha = CommitSha,
                 Ref = Ref
             };
-            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO).Result).Returns(new [] {CodeScanningAnalysisResult});
+            _mockSourceGithubApi.Setup(x => x.GetDefaultBranch(SOURCE_ORG, SOURCE_REPO).Result).Returns(Ref);
+            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, Ref).Result).Returns(new [] {CodeScanningAnalysisResult});
             _mockSourceGithubApi.Setup(x => x.GetSarifReport(SOURCE_ORG, SOURCE_REPO, analysisId).Result).Returns(SarifResponse);
             
             var expectedContainer = new SarifContainer
@@ -65,13 +66,14 @@ public class CodeScanningServiceTest
         [Fact]
         public async Task migrateAnalyses_migrate_multiple_analysis_in_correct_order()
         {
+            var Ref = "refs/heads/main";
             var resultExpectedFirst = new CodeScanningAnalysis
             {
                 Id = 1,
                 Category = "Category",
                 CreatedAt = "2022-03-30T00:00:00Z",
                 CommitSha = "SHA_1",
-                Ref = "refs/heads/main",
+                Ref = Ref
             };
             var resultExpectedSecond = new CodeScanningAnalysis
             {
@@ -79,7 +81,7 @@ public class CodeScanningServiceTest
                 Category = "Category",
                 CreatedAt = "2022-03-31T00:00:00Z",
                 CommitSha = "SHA_2",
-                Ref = "refs/heads/main",
+                Ref = Ref,
             };
             
             var resultExpectedThird = new CodeScanningAnalysis
@@ -88,10 +90,11 @@ public class CodeScanningServiceTest
                 Category = "Category",
                 CreatedAt = "2022-04-01T00:00:00Z",
                 CommitSha = "SHA_3",
-                Ref = "refs/heads/main",
+                Ref = Ref,
             };
             
-            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO).Result).Returns(new [] {resultExpectedThird, resultExpectedSecond, resultExpectedFirst});
+            _mockSourceGithubApi.Setup(x => x.GetDefaultBranch(SOURCE_ORG, SOURCE_REPO).Result).Returns(Ref);
+            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, Ref).Result).Returns(new [] {resultExpectedThird, resultExpectedSecond, resultExpectedFirst});
 
             // Question David: Is there a better way to verify the order of the calls?
             var callOrder = 1;

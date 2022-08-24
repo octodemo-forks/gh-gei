@@ -579,9 +579,15 @@ namespace OctoshiftCLI
             return data.ToObject<MannequinReclaimResult>();
         }
 
-        public virtual async Task<IEnumerable<CodeScanningAnalysis>> GetCodeScanningAnalysisForRepository(string org, string repo)
+        public virtual async Task<IEnumerable<CodeScanningAnalysis>> GetCodeScanningAnalysisForRepository(string org, string repo, string branch = null)
         {
-            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/analyses?per_page=100";
+            var queryString = "per_page=100";
+            if (!branch.IsNullOrWhiteSpace())
+            {
+                queryString += $"&ref={branch}";
+            }
+            
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/analyses?{queryString}";
             return await _client.GetAllAsync(url)
                 .Select(codescan => BuildCodeScanningAnalysis(codescan))
                 .ToListAsync();
@@ -685,6 +691,16 @@ namespace OctoshiftCLI
                 @ref = sarifContainer.Ref
             };
             return await _client.PostAsync(url, payload);
+        }
+        
+        public virtual async Task<string> GetDefaultBranch(string org, string repo)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}";
+
+            var response = await _client.GetAsync(url);
+            var data = JObject.Parse(response);
+
+            return (string)data["default_branch"];
         }
 
         private static object GetMannequinsPayload(string orgId)

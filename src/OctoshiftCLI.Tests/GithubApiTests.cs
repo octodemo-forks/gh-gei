@@ -1773,6 +1773,20 @@ namespace OctoshiftCLI.Tests
         }
 
         [Fact]
+        public async Task getDefaultBranch_returns_default_branch_field()
+        {
+            const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}";
+
+            _githubClientMock
+                .Setup(m => m.GetAsync(url))
+                .ReturnsAsync("{ \"default_branch\": \"main\" }");
+            
+            var result = await _githubApi.GetDefaultBranch(GITHUB_ORG, GITHUB_REPO);
+            
+            result.Should().Be("main");
+        }
+
+        [Fact]
         public async Task GetCodeScanningAnalysisData()
         {
             // Arrange
@@ -1895,7 +1909,51 @@ namespace OctoshiftCLI.Tests
             expectedData = JObject.Parse(codeQLCodeScanning2);
             scanResultsArray[2].Id.Should().Be((int)expectedData["id"]);
         }
-        
+
+
+        [Fact]
+        public async Task GetCodeScanningAnalysisData_passes_filtered_branch_as_queryString()
+        {
+            const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses?per_page=100&ref=main";
+            
+            var codeQLCodeScanning1 = $@"
+                {{
+                    ""ref"": ""refs/heads/main"",
+                    ""commit_sha"": ""67f8626e1f3ca40e9678e1dcfc4f840009ffc260"",
+                    ""analysis_key"": "".github/workflows/codeql.yml:analyze"",
+                    ""environment"": ""{{\""language\"":\""javascript\""}}"",
+                    ""category"": "".github/workflows/codeql.yml:analyze/language:javascript"",
+                    ""error"": """",
+                    ""created_at"": ""2022-08-06T19:40:39Z"",
+                    ""results_count"": 956,
+                    ""rules_count"": 202,
+                    ""id"": 38026365,
+                    ""url"": ""https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses/38026365"",
+                    ""sarif_id"": ""a5b745ee-15bf-11ed-9399-5b06f5cd9458"",
+                    ""tool"": {{
+                        ""name"": ""CodeQL"",
+                        ""guid"": null,
+                        ""version"": ""2.10.1""
+                    }},
+                    ""deletable"": true,
+                    ""warning"": """"
+                }}
+            ";
+            
+            var responsePage1 = $@"[ { codeQLCodeScanning1 } ] ";
+            async IAsyncEnumerable<JToken> GetAllPages()
+            {
+                var jArrayPage1 = JArray.Parse(responsePage1);
+                yield return jArrayPage1[0];
+
+                await Task.CompletedTask;
+            }
+            _githubClientMock.Setup(m => m.GetAllAsync(url)).Returns(GetAllPages);
+            
+            await _githubApi.GetCodeScanningAnalysisForRepository(GITHUB_ORG, GITHUB_REPO, "main");
+            _githubClientMock.Verify(m => m.GetAllAsync(url));
+        }
+
         [Fact]
         public async Task GetSecretScanningAlertsData()
         {

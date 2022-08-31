@@ -14,6 +14,8 @@ public class CodeScanningAlert
     public string DismissedComment { get; set; }
     public string DismissedByLogin { get; set; }
     public CodeScanningAlertInstance Instance { get; set; }
+    
+    public string RuleId { get; set; }
 }
 
 public class CodeScanningAlertInstance

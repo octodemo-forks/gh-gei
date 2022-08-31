@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Castle.Core.Internal;
 using FluentAssertions;
 using Moq;
 using Newtonsoft.Json.Linq;
@@ -1945,7 +1946,7 @@ namespace OctoshiftCLI.Tests
         public async Task GetCodeScanningAnalysisData()
         {
             // Arrange
-            const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses?per_page=100";
+            const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses?per_page=100&sort=created&direction=asc";
 
             var tfsecCodeScanning = $@"
                 {{
@@ -2069,7 +2070,7 @@ namespace OctoshiftCLI.Tests
         [Fact]
         public async Task GetCodeScanningAnalysisData_passes_filtered_branch_as_queryString()
         {
-            const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses?per_page=100&ref=main";
+            const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/analyses?per_page=100&sort=created&direction=asc&ref=main";
             
             var codeQLCodeScanning1 = $@"
                 {{
@@ -2108,7 +2109,292 @@ namespace OctoshiftCLI.Tests
             await _githubApi.GetCodeScanningAnalysisForRepository(GITHUB_ORG, GITHUB_REPO, "main");
             _githubClientMock.Verify(m => m.GetAllAsync(url));
         }
+        
+        [Fact]
+        public async Task GetCodeScanningAlertsData()
+        {
+            // Arrange
+            const string url =
+                $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/alerts?per_page=100";
 
+            var codeScanningAlert_1 = $@"
+                {{
+                    ""number"": 1,
+                    ""created_at"": ""2022-07-15T11:34:54Z"",
+                    ""updated_at"": ""2022-07-15T11:34:54Z"",
+                    ""url"": ""https://api.github.com/repos/Braustuben/gei-import-test-repo/code-scanning/alerts/3"",
+                    ""html_url"": ""https://github.com/Braustuben/gei-import-test-repo/security/code-scanning/3"",
+                    ""state"": ""fixed"",
+                    ""fixed_at"": ""2022-07-15T11:45:20Z"",
+                    ""dismissed_by"": null,
+                    ""dismissed_at"": null,
+                    ""dismissed_reason"": null,
+                    ""dismissed_comment"": null,
+                    ""rule"": {{
+                      ""id"": ""java/sql-injection"",
+                      ""severity"": ""error"",
+                      ""description"": ""Query built from user-controlled sources"",
+                      ""name"": ""java/sql-injection"",
+                      ""tags"": [
+                        ""external/cwe/cwe-089"",
+                        ""external/cwe/cwe-564"",
+                        ""security""
+                      ],
+                      ""security_severity_level"": ""high""
+                    }},
+                    ""tool"": {{
+                      ""name"": ""CodeQL"",
+                      ""guid"": null,
+                      ""version"": ""2.10.0""
+                    }},
+                    ""most_recent_instance"": {{
+                      ""ref"": ""refs/heads/main"",
+                      ""analysis_key"": "".github/workflows/code_scanning.yml:build"",
+                      ""environment"": ""{{}}"",
+                      ""category"": "".github/workflows/code_scanning.yml:build"",
+                      ""state"": ""fixed"",
+                      ""commit_sha"": ""d80eeb44bb13ebd76ee6fdf61d0245c6c341152f"",
+                      ""message"": {{
+                        ""text"": ""Query might include code from this user input.""
+                      }},
+                      ""location"": {{
+                        ""path"": ""src/main/java/com/github/demo/service/BookDatabaseImpl.java"",
+                        ""start_line"": 161,
+                        ""end_line"": 161,
+                        ""start_column"": 51,
+                        ""end_column"": 56
+                      }},
+                      ""classifications"": []
+                    }},
+                    ""instances_url"": ""https://api.github.com/repos/Braustuben/gei-import-test-repo/code-scanning/alerts/3/instances""
+                  }}
+                ";
+
+            var codeScanningAlert_2 = $@"
+                {{
+                    ""number"": 2,
+                    ""created_at"": ""2022-07-15T11:34:54Z"",
+                    ""updated_at"": ""2022-08-11T10:47:37Z"",
+                    ""url"": ""https://api.github.com/repos/Braustuben/gei-import-test-repo/code-scanning/alerts/2"",
+                    ""html_url"": ""https://github.com/Braustuben/gei-import-test-repo/security/code-scanning/2"",
+                    ""state"": ""dismissed"",
+                    ""fixed_at"": null,
+                    ""dismissed_at"": ""2022-07-25T06:09:14Z"",
+                    ""dismissed_reason"": ""won't fix"",
+                    ""dismissed_comment"": ""Comment saying why this won't be fixed."",
+                    ""dismissed_by"": {{
+                      ""login"": ""davelosert"",
+                      ""id"": 4287128,
+                      ""node_id"": ""MDQ6VXNlcjQyODcxMjg="",
+                      ""avatar_url"": ""https://avatars.githubusercontent.com/u/4287128?v=4"",
+                      ""gravatar_id"": """",
+                      ""url"": ""https://api.github.com/users/davelosert"",
+                      ""html_url"": ""https://github.com/davelosert"",
+                      ""followers_url"": ""https://api.github.com/users/davelosert/followers"",
+                      ""following_url"": ""https://api.github.com/users/davelosert/following{{/other_user}}"",
+                      ""gists_url"": ""https://api.github.com/users/davelosert/gists{{/gist_id}}"",
+                      ""starred_url"": ""https://api.github.com/users/davelosert/starred{{/owner}}{{/repo}}"",
+                      ""subscriptions_url"": ""https://api.github.com/users/davelosert/subscriptions"",
+                      ""organizations_url"": ""https://api.github.com/users/davelosert/orgs"",
+                      ""repos_url"": ""https://api.github.com/users/davelosert/repos"",
+                      ""events_url"": ""https://api.github.com/users/davelosert/events{{/privacy}}"",
+                      ""received_events_url"": ""https://api.github.com/users/davelosert/received_events"",
+                      ""type"": ""User"",
+                      ""site_admin"": true
+                    }},
+                    ""rule"": {{
+                      ""id"": ""java/sql-injection"",
+                      ""severity"": ""error"",
+                      ""description"": ""Query built from user-controlled sources"",
+                      ""name"": ""java/sql-injection"",
+                      ""tags"": [
+                        ""external/cwe/cwe-089"",
+                        ""external/cwe/cwe-564"",
+                        ""security""
+                      ],
+                      ""security_severity_level"": ""high""
+                    }},
+                    ""tool"": {{
+                      ""name"": ""CodeQL"",
+                      ""guid"": null,
+                      ""version"": ""2.10.2""
+                    }},
+                    ""most_recent_instance"": {{
+                      ""ref"": ""refs/heads/main"",
+                      ""analysis_key"": "".github/workflows/renamed_code_scanning.yml:build"",
+                      ""environment"": ""{{}}"",
+                      ""category"": "".github/workflows/renamed_code_scanning.yml:build"",
+                      ""state"": ""dismissed"",
+                      ""commit_sha"": ""4f8ecaaca41c4121a07fbc9d1bc8e69a1f2271dc"",
+                      ""message"": {{
+                        ""text"": ""Query might include code from this user input.""
+                      }},
+                      ""location"": {{
+                        ""path"": ""src/main/java/com/github/demo/service/BookDatabaseImpl.java"",
+                        ""start_line"": 120,
+                        ""end_line"": 120,
+                        ""start_column"": 42,
+                        ""end_column"": 47
+                      }},
+                      ""classifications"": []
+                    }},
+                    ""instances_url"": ""https://api.github.com/repos/Braustuben/gei-import-test-repo/code-scanning/alerts/2/instances""
+                  }}
+                ";
+            
+            var codeScanningAlert_3 = $@"
+                 {{
+                    ""number"": 3,
+                    ""created_at"": ""2022-07-13T08:22:25Z"",
+                    ""updated_at"": ""2022-07-15T10:59:29Z"",
+                    ""url"": ""https://api.github.com/repos/Braustuben/gei-import-test-repo/code-scanning/alerts/1"",
+                    ""html_url"": ""https://github.com/Braustuben/gei-import-test-repo/security/code-scanning/1"",
+                    ""state"": ""fixed"",
+                    ""fixed_at"": ""2022-07-15T11:34:54Z"",
+                    ""dismissed_by"": {{
+                      ""login"": ""davelosert"",
+                      ""id"": 4287128,
+                      ""node_id"": ""MDQ6VXNlcjQyODcxMjg="",
+                      ""avatar_url"": ""https://avatars.githubusercontent.com/u/4287128?v=4"",
+                      ""gravatar_id"": """",
+                      ""url"": ""https://api.github.com/users/davelosert"",
+                      ""html_url"": ""https://github.com/davelosert"",
+                      ""followers_url"": ""https://api.github.com/users/davelosert/followers"",
+                      ""following_url"": ""https://api.github.com/users/davelosert/following{{/other_user}}"",
+                      ""gists_url"": ""https://api.github.com/users/davelosert/gists{{/gist_id}}"",
+                      ""starred_url"": ""https://api.github.com/users/davelosert/starred{{/owner}}{{/repo}}"",
+                      ""subscriptions_url"": ""https://api.github.com/users/davelosert/subscriptions"",
+                      ""organizations_url"": ""https://api.github.com/users/davelosert/orgs"",
+                      ""repos_url"": ""https://api.github.com/users/davelosert/repos"",
+                      ""events_url"": ""https://api.github.com/users/davelosert/events{{/privacy}}"",
+                      ""received_events_url"": ""https://api.github.com/users/davelosert/received_events"",
+                      ""type"": ""User"",
+                      ""site_admin"": true
+                    }},
+                    ""dismissed_at"": ""2022-07-15T07:58:06Z"",
+                    ""dismissed_reason"": ""used in tests"",
+                    ""dismissed_comment"": ""Closed again"",
+                    ""rule"": {{
+                      ""id"": ""java/sql-injection"",
+                      ""severity"": ""error"",
+                      ""description"": ""Query built from user-controlled sources"",
+                      ""name"": ""java/sql-injection"",
+                      ""tags"": [
+                        ""external/cwe/cwe-089"",
+                        ""external/cwe/cwe-564"",
+                        ""security""
+                      ],
+                      ""security_severity_level"": ""high""
+                    }},
+                    ""tool"": {{
+                      ""name"": ""CodeQL"",
+                      ""guid"": null,
+                      ""version"": ""2.10.0""
+                    }},
+                    ""most_recent_instance"": {{
+                      ""ref"": ""refs/heads/main"",
+                      ""analysis_key"": "".github/workflows/code_scanning.yml:build"",
+                      ""environment"": ""{{}}"",
+                      ""category"": "".github/workflows/code_scanning.yml:build"",
+                      ""state"": ""fixed"",
+                      ""commit_sha"": ""b42f07d50e5ce4451d599e6cc9ac46f3a03fc352"",
+                      ""message"": {{
+                        ""text"": ""Query might include code from this user input.""
+                      }},
+                      ""location"": {{
+                        ""path"": ""src/main/java/com/github/demo/service/BookDatabaseImpl.java"",
+                        ""start_line"": 120,
+                        ""end_line"": 120,
+                        ""start_column"": 51,
+                        ""end_column"": 56
+                      }},
+                      ""classifications"": []
+                    }},
+                    ""instances_url"": ""https://api.github.com/repos/Braustuben/gei-import-test-repo/code-scanning/alerts/1/instances""
+                  }}
+                ";
+            
+            var responsePage1 = $@"
+                [
+                    {codeScanningAlert_1},
+                    {codeScanningAlert_2}
+                ]
+            ";
+
+            var responsePage2 = $@"
+                [
+                    {codeScanningAlert_3}
+                ]
+            ";
+            
+            async IAsyncEnumerable<JToken> GetAllPages()
+            {
+                var jArrayPage1 = JArray.Parse(responsePage1);
+                yield return jArrayPage1[0];
+                yield return jArrayPage1[1];
+
+                var jArrayPage2 = JArray.Parse(responsePage2);
+                yield return jArrayPage2[0];
+
+                await Task.CompletedTask;
+            }
+
+            _githubClientMock
+                .Setup(m => m.GetAllAsync(url))
+                .Returns(GetAllPages);
+            
+            // Act
+            var scanResults = await _githubApi.GetCodeScanningAlertsForRepository(GITHUB_ORG, GITHUB_REPO);
+            
+            // Assert
+            scanResults.Count().Should().Be(3);
+            var scanResultsArray = scanResults.ToArray();
+            AssertCodeScanningData(scanResultsArray[0], JObject.Parse(codeScanningAlert_1));
+            AssertCodeScanningData(scanResultsArray[1], JObject.Parse(codeScanningAlert_2));
+            AssertCodeScanningData(scanResultsArray[2], JObject.Parse(codeScanningAlert_3));
+        }
+        
+        private void AssertCodeScanningData(CodeScanningAlert actual, JToken expectedData)
+        {
+            actual.Number.Should().Be((int)expectedData["number"]);
+            actual.State.Should().Be((string)expectedData["state"]);
+            
+            if (!expectedData.Value<string>("dismissed_at").IsNullOrEmpty())
+            {
+                actual.DismissedAt.Should().Be((string)expectedData["dismissed_at"]);
+                actual.DismissedReason.Should().Be((string)expectedData["dismissed_reason"]);
+                actual.DismissedComment.Should().Be((string)expectedData["dismissed_comment"]);
+                var resolvedByLogin = (string)expectedData["dismissed_by"]["login"]; 
+                actual.DismissedByLogin.Should().Be(resolvedByLogin);
+            }
+            else
+            {
+                actual.DismissedAt.Should().BeNull();
+                actual.DismissedReason.Should().BeNull();
+                actual.DismissedComment.Should().BeNull();
+                actual.DismissedByLogin.Should().BeNull();
+            }
+            
+            if(expectedData["fixed_at"].Any())
+            {
+                actual.FixedAt.Should().Be((string)expectedData["fixed_at"]);
+            }
+            else
+            {
+                actual.FixedAt.Should().BeNull();
+            }
+            
+            actual.Instance.Ref.Should().Be((string)expectedData["most_recent_instance"]["ref"]);
+            actual.Instance.AnalysisKey.Should().Be((string)expectedData["most_recent_instance"]["analysis_key"]);
+            actual.Instance.State.Should().Be((string)expectedData["most_recent_instance"]["state"]);
+            actual.Instance.CommitSha.Should().Be((string)expectedData["most_recent_instance"]["commit_sha"]);
+            actual.Instance.Location.Path.Should().Be((string)expectedData["most_recent_instance"]["location"]["path"]);
+            actual.Instance.Location.StartLine.Should().Be((int)expectedData["most_recent_instance"]["location"]["start_line"]);
+            actual.Instance.Location.EndLine.Should().Be((int)expectedData["most_recent_instance"]["location"]["end_line"]);
+            actual.Instance.Location.StartColumn.Should().Be((int)expectedData["most_recent_instance"]["location"]["start_column"]);
+            actual.Instance.Location.EndColumn.Should().Be((int)expectedData["most_recent_instance"]["location"]["end_column"]);
+        }
+        
         [Fact]
         public async Task GetSecretScanningAlertsData()
         {

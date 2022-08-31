@@ -692,7 +692,7 @@ namespace OctoshiftCLI
 
         public virtual async Task<IEnumerable<CodeScanningAnalysis>> GetCodeScanningAnalysisForRepository(string org, string repo, string branch = null)
         {
-            var queryString = "per_page=100";
+            var queryString = "per_page=100&sort=created&direction=asc";
             if (!branch.IsNullOrWhiteSpace())
             {
                 queryString += $"&ref={branch}";
@@ -809,6 +809,14 @@ namespace OctoshiftCLI
             var data = JObject.Parse(response);
 
             return (string)data["default_branch"];
+        }
+        
+        public virtual async Task<IEnumerable<CodeScanningAlert>> GetCodeScanningAlertsForRepository(string org, string repo)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/alerts?per_page=100";
+            return await _client.GetAllAsync(url)
+                .Select(BuildCodeScanningAlert)
+                .ToListAsync();
         }
 
         private static object GetMannequinsPayload(string orgId)
@@ -929,5 +937,32 @@ namespace OctoshiftCLI
                 }
             };
         
+        private static CodeScanningAlert BuildCodeScanningAlert(JToken scanningAlert) =>
+            
+            new CodeScanningAlert { 
+                Number = (int)scanningAlert["number"],
+                FixedAt = scanningAlert["fixed_at"].Any() ? (string)scanningAlert["fixed_at"] : null,
+                Url = (string)scanningAlert["url"],
+                DismissedAt = scanningAlert.Value<string>("dismissed_at"),
+                DismissedComment = scanningAlert.Value<string>("dismissed_comment"),
+                DismissedReason = scanningAlert.Value<string>("dismissed_reason"),
+                DismissedByLogin = scanningAlert["dismissed_by"].Any() ? (string)scanningAlert["dismissed_by"]["login"] : null,
+                State = (string)scanningAlert["state"],
+                Instance = new CodeScanningAlertInstance
+                {
+                    Ref = (string)scanningAlert["most_recent_instance"]["ref"],
+                    State = (string)scanningAlert["most_recent_instance"]["state"],
+                    AnalysisKey = (string)scanningAlert["most_recent_instance"]["analysis_key"],
+                    CommitSha = (string)scanningAlert["most_recent_instance"]["commit_sha"],
+                    Location = new CodeScanningAlertLocation
+                    {
+                        Path = (string)scanningAlert["most_recent_instance"]["location"]["path"],
+                        StartLine = (int)scanningAlert["most_recent_instance"]["location"]["start_line"],
+                        EndLine = (int)scanningAlert["most_recent_instance"]["location"]["end_line"],
+                        StartColumn = (int)scanningAlert["most_recent_instance"]["location"]["start_column"],
+                        EndColumn = (int)scanningAlert["most_recent_instance"]["location"]["end_column"],
+                    }
+                }
+            };
     }
 }

@@ -24,14 +24,11 @@ namespace Octoshift
         }
 
         public virtual async Task MigrateAnalyses(string sourceOrg, string sourceRepo, string targetOrg,
-            string targetRepo)
+            string targetRepo, string branch)
         {
             _log.LogInformation($"Migrating Code Scanning Analyses from '{sourceOrg}/{sourceRepo}' to '{targetOrg}/{targetRepo}'");
             
-            // As the number of analyses can get massive within pull requests (on created for every CodeQL Action Run),
-            // we currently only support migrating analyses from the default branch to prevent hitting API Rate Limits.
-            var defaultBranch = await _sourceGithubApi.GetDefaultBranch(sourceOrg, sourceRepo);
-            var analyses = await _sourceGithubApi.GetCodeScanningAnalysisForRepository(sourceOrg, sourceRepo, defaultBranch);
+            var analyses = await _sourceGithubApi.GetCodeScanningAnalysisForRepository(sourceOrg, sourceRepo, branch);
             analyses = analyses.ToList();
             
             var successCount = 0;
@@ -90,12 +87,16 @@ namespace Octoshift
 
              var sourceAlerts = sourceAlertTask.Result.ToList();
              var targetAlerts = targetAlertTask.Result.ToList();
+             var successCount = 0;
+             
+             _log.LogInformation($"Found {sourceAlerts.Count} source and {targetAlerts.Count} target alerts. Starting migration of alert states...");
              
              foreach (var sourceAlert in sourceAlerts)
              {
                  if (!_allowedStates.Contains(sourceAlert.State))
                  {
-                     return;
+                     _log.LogVerbose($"Skipping alert {sourceAlert.Number} ({sourceAlert.Url}) has state '{sourceAlert.State}' is not migratable.");
+                     continue;
                  }
                  
                  
@@ -103,11 +104,12 @@ namespace Octoshift
 
                  if (matchingTargetAlert == null)
                  {
-                     _log.LogWarning($"Could not find target alert for ${sourceAlert.Number} (${sourceAlert.Url})");
-                     return;
+                     _log.LogWarning($"Could not find target alert for {sourceAlert.Number} ({sourceAlert.Url})");
+                     continue;
                  }
                  
                  // Todo: Add this to a queue to parallelize alert updates
+                 _log.LogVerbose($"Setting Status ${sourceAlert.State} for target alert ${matchingTargetAlert.Number} (${matchingTargetAlert.Url})");
                  await _targetGithubApi.UpdateCodeScanningAlert(
                      targetOrg, 
                      targetRepo, 
@@ -116,7 +118,10 @@ namespace Octoshift
                      sourceAlert.DismissedReason, 
                      sourceAlert.DismissedComment
                      );
+                 successCount++;
              }
+             
+             _log.LogInformation($"Code Scanning Alerts done!\nSuccess-Count: {successCount}/ {sourceAlerts.Count} migrated!");
 
         }
 
@@ -125,7 +130,11 @@ namespace Octoshift
             return sourceAlert.RuleId == targetAlert.RuleId
                    && sourceAlert.Instance.Ref == targetAlert.Instance.Ref
                    && sourceAlert.Instance.CommitSha == targetAlert.Instance.CommitSha
-                   && sourceAlert.Instance.Location.Equals(targetAlert.Instance.Location);
+                   && sourceAlert.Instance.Location.Path == targetAlert.Instance.Location.Path
+                   && sourceAlert.Instance.Location.StartLine == targetAlert.Instance.Location.StartLine
+                   && sourceAlert.Instance.Location.StartColumn == targetAlert.Instance.Location.StartColumn
+                   && sourceAlert.Instance.Location.EndLine == targetAlert.Instance.Location.EndLine
+                   && sourceAlert.Instance.Location.EndColumn == targetAlert.Instance.Location.EndColumn;
         }
     }
 

@@ -108,7 +108,11 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
 
             var migrationService = new CodeScanningService(sourceGitHubApi, targetGithubApi, _log);
 
-            await migrationService.MigrateAnalyses( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo);
+            // As the number of analyses can get massive within pull requests (on created for every CodeQL Action Run),
+            // we currently only support migrating analyses from the default branch to prevent hitting API Rate Limits.
+            var defaultBranch = await sourceGitHubApi.GetDefaultBranch(args.GithubSourceOrg, args.SourceRepo);
+            await migrationService.MigrateAnalyses( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo, defaultBranch);
+            await migrationService.MigrateAlerts( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo, defaultBranch);
             
             _log.LogSuccess($"Code Scanning results completed.");
         }

@@ -41,8 +41,7 @@ public class CodeScanningServiceTest
                 CommitSha = CommitSha,
                 Ref = Ref
             };
-            _mockSourceGithubApi.Setup(x => x.GetDefaultBranch(SOURCE_ORG, SOURCE_REPO).Result).Returns(Ref);
-            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, Ref).Result).Returns(new [] {CodeScanningAnalysisResult});
+            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {CodeScanningAnalysisResult});
             _mockSourceGithubApi.Setup(x => x.GetSarifReport(SOURCE_ORG, SOURCE_REPO, analysisId).Result).Returns(SarifResponse);
             
             var expectedContainer = new SarifContainer {
@@ -51,7 +50,7 @@ public class CodeScanningServiceTest
                 CommitSha = CommitSha
             };
             
-            await _service.MigrateAnalyses(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO);
+            await _service.MigrateAnalyses(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
             
             _mockTargetGithubApi.Verify(
                 x => x.UploadSarifReport(
@@ -87,12 +86,11 @@ public class CodeScanningServiceTest
             const string sarifResponse2 = "SARIF_RESPONSE_2";
             
             
-            _mockSourceGithubApi.Setup(x => x.GetDefaultBranch(SOURCE_ORG, SOURCE_REPO).Result).Returns(Ref);
-            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, Ref).Result).Returns(new [] {analysis1, analysis2});
+            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {analysis1, analysis2});
             _mockSourceGithubApi.Setup(x => x.GetSarifReport(SOURCE_ORG, SOURCE_REPO, analysis1.Id).Result).Returns(sarifResponse1);
             _mockSourceGithubApi.Setup(x => x.GetSarifReport(SOURCE_ORG, SOURCE_REPO, analysis2.Id).Result).Returns(sarifResponse2);
 
-            await _service.MigrateAnalyses(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO);
+            await _service.MigrateAnalyses(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
             
             _mockTargetGithubApi.Verify(
                 x => x.UploadSarifReport(
@@ -152,7 +150,7 @@ public class CodeScanningServiceTest
                 Instance = lastInstance
             };
             
-            var targetAlert = new CodeScanningAlert { Number = 2, State = "open", Instance = lastInstance, RuleId = "java/rule"};
+            var targetAlert = new CodeScanningAlert { Number = 2, State = "open", Instance = CopyInstance(lastInstance), RuleId = "java/rule"};
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert});
             
@@ -221,8 +219,8 @@ public class CodeScanningServiceTest
                 Instance = instance2
             };
             
-            var targetAlert1 = new CodeScanningAlert { Number = 3, State = "open", Instance = instance1, RuleId = "java/rule"};
-            var targetAlert2 = new CodeScanningAlert { Number = 4, State = "open", Instance = instance2, RuleId = "java/rule"};
+            var targetAlert1 = new CodeScanningAlert { Number = 3, State = "open", Instance = CopyInstance(instance1), RuleId = "java/rule"};
+            var targetAlert2 = new CodeScanningAlert { Number = 4, State = "open", Instance = CopyInstance(instance2), RuleId = "java/rule"};
             
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert2, targetAlert1});
@@ -301,8 +299,8 @@ public class CodeScanningServiceTest
                 Instance = instance2
             };
             
-            var targetAlert1 = new CodeScanningAlert { Number = 3, State = "open", Instance = instance1, RuleId = "java/rule"};
-            var targetAlert2 = new CodeScanningAlert { Number = 4, State = "open", Instance = instance2, RuleId = "java/rule"};
+            var targetAlert1 = new CodeScanningAlert { Number = 3, State = "open", Instance = CopyInstance(instance1), RuleId = "java/rule"};
+            var targetAlert2 = new CodeScanningAlert { Number = 4, State = "open", Instance = CopyInstance(instance2), RuleId = "java/rule"};
             
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert2, targetAlert1});
@@ -385,8 +383,8 @@ public class CodeScanningServiceTest
                 Instance = instance2
             };
             
-            var targetAlert1 = new CodeScanningAlert { Number = 3, State = "open", Instance = instance1, RuleId = "java/rule"};
-            var targetAlert2 = new CodeScanningAlert { Number = 4, State = "open", Instance = instance2, RuleId = "java/rule"};
+            var targetAlert1 = new CodeScanningAlert { Number = 3, State = "open", Instance = CopyInstance(instance1), RuleId = "java/rule"};
+            var targetAlert2 = new CodeScanningAlert { Number = 4, State = "open", Instance = CopyInstance(instance2), RuleId = "java/rule"};
             
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert2, targetAlert1});
@@ -432,6 +430,17 @@ public class CodeScanningServiceTest
                 }
             };
             
+            var sourceAlert1 = new CodeScanningAlert
+            {
+                Number = 1,
+                RuleId = "java/rule",
+                State = "fixed",
+                DismissedAt = "2020-01-01T00:00:00Z",
+                DismissedComment = "I was dismissed!",
+                DismissedReason = "false positive",
+                Instance = instance1
+            };
+            
             var instance2 = new CodeScanningAlertInstance
             {
                 Ref = Ref,
@@ -447,16 +456,6 @@ public class CodeScanningServiceTest
                 }
             };
 
-            var sourceAlert1 = new CodeScanningAlert
-            {
-                Number = 1,
-                RuleId = "java/rule",
-                State = "fixed",
-                DismissedAt = "2020-01-01T00:00:00Z",
-                DismissedComment = "I was dismissed!",
-                DismissedReason = "false positive",
-                Instance = instance1
-            };
             
             var sourceAlert2 = new CodeScanningAlert
             {
@@ -469,23 +468,70 @@ public class CodeScanningServiceTest
                 Instance = instance2
             };
             
-            var targetAlert1 = new CodeScanningAlert { Number = 3, State = "open", Instance = instance1, RuleId = "java/rule"};
-            var targetAlert2 = new CodeScanningAlert { Number = 4, State = "open", Instance = instance2, RuleId = "java/rule"};
+            var instance3 = new CodeScanningAlertInstance
+            {
+                Ref = Ref,
+                State = "open",
+                AnalysisKey = "123456",
+                CommitSha = CommitSha,
+                Location = new CodeScanningAlertLocation {
+                    Path = "path/to/file.cs",
+                    StartLine = 3,
+                    StartColumn = 4,
+                    EndLine = 6,
+                    EndColumn = 25
+                }
+            };
             
-            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2});
-            _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert2, targetAlert1});
+            var sourceAlert3 = new CodeScanningAlert
+            {
+                Number = 3,
+                RuleId = "java/rule",
+                State = "open",
+                DismissedAt = "2020-01-01T00:00:00Z",
+                DismissedComment = "I was dismissed!",
+                DismissedReason = "false positive",
+                Instance = instance3
+            };
+            
+            var targetAlert1 = new CodeScanningAlert { Number = 4, State = "open", Instance = CopyInstance(instance3), RuleId = "java/rule"};
+            
+            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2, sourceAlert3});
+            _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert1});
             
             await _service.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
             
+            _mockTargetGithubApi.Verify(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main"), Times.Once);
             _mockTargetGithubApi.Verify(x => x.UpdateCodeScanningAlert(
                 TARGET_ORG, 
                 TARGET_REPO, 
-                It.IsAny<int>(), 
-                It.IsAny<string>(), 
-                It.IsAny<string>(), 
-                It.IsAny<string>()
-            ), Times.Never);
+                targetAlert1.Number,
+                sourceAlert3.State, 
+                sourceAlert3.DismissedReason, 
+                sourceAlert3.DismissedComment
+            ), Times.Once);
+            _mockTargetGithubApi.VerifyNoOtherCalls();
             
+        }
+
+        // Avoid having referential equal instances to have real use case tests
+        private CodeScanningAlertInstance CopyInstance(CodeScanningAlertInstance codeScanningAlertInstance)
+        {
+            return new CodeScanningAlertInstance()
+            {
+                AnalysisKey = codeScanningAlertInstance.AnalysisKey,
+                CommitSha = codeScanningAlertInstance.CommitSha,
+                Ref = codeScanningAlertInstance.Ref,
+                State = codeScanningAlertInstance.State,
+                Location = new CodeScanningAlertLocation
+                {
+                    Path = codeScanningAlertInstance.Location.Path,
+                    StartLine = codeScanningAlertInstance.Location.StartLine,
+                    StartColumn = codeScanningAlertInstance.Location.StartColumn,
+                    EndLine = codeScanningAlertInstance.Location.EndLine,
+                    EndColumn = codeScanningAlertInstance.Location.EndColumn
+                } 
+            };
         }
 }
 

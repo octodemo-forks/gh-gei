@@ -30,16 +30,11 @@ namespace Octoshift
             // we currently only support migrating analyses from the default branch to prevent hitting API Rate Limits.
             var defaultBranch = await _sourceGithubApi.GetDefaultBranch(sourceOrg, sourceRepo);
             var analyses = await _sourceGithubApi.GetCodeScanningAnalysisForRepository(sourceOrg, sourceRepo, defaultBranch);
+            analyses = analyses.ToList();
             
             var successCount = 0;
             var errorCount = 0;
             
-            analyses = analyses
-                // TODO: We can avoid manual ordering once https://github.com/github/github/pull/232832 is merged 
-                // This will bring the ordering to the API Level - which means we can then also change this to a streaming-based
-                // approach so we do not need to store all analyses in memory before acting on them
-                .OrderBy(a => a.CreatedAt)
-                .ToList();
             
             _log.LogVerbose($"Found {analyses.Count()} analyses to migrate.");
             

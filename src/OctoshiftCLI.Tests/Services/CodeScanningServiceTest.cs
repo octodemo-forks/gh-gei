@@ -122,10 +122,50 @@ public class CodeScanningServiceTest
         }
 
         [Fact]
-        public async Task migrateAlerts_matches_state_of_source_in_target()
+        public async Task migrateAlerts_matches_dismissed_alert_by_last_instance_and_updates_target()
         {
-            // const alert1 = new CodeScanning
-            // _mockSourceGithubApi.Setup(x => x.GetSecretScanningAlertsForRepository())
+            var CommitSha = "SHA_1";
+            var Ref = "refs/heads/main";
+            var lastInstance = new CodeScanningAlertInstance
+            {
+                Ref = Ref,
+                State = "open",
+                AnalysisKey = "123456",
+                CommitSha = CommitSha,
+                Location = new CodeScanningAlertLocation {
+                    Path = "path/to/file.cs",
+                    StartLine = 3,
+                    StartColumn = 4,
+                    EndLine = 6,
+                    EndColumn = 25
+                }
+            };
+
+            var sourceAlert = new CodeScanningAlert
+            {
+                Number = 1,
+                RuleId = "java/rule",
+                State = "dismissed",
+                DismissedAt = "2020-01-01T00:00:00Z",
+                DismissedComment = "I was dismissed!",
+                DismissedReason = "false positive",
+                Instance = lastInstance
+            };
+            
+            var targetAlert = new CodeScanningAlert { Number = 2, State = "open", Instance = lastInstance, RuleId = "java/rule"};
+            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert});
+            _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert});
+            
+            await _service.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
+            
+            _mockTargetGithubApi.Verify(x => x.UpdateCodeScanningAlert(
+                TARGET_ORG, 
+                TARGET_REPO, 
+                2, 
+                sourceAlert.State, 
+                sourceAlert.DismissedReason, 
+                sourceAlert.DismissedComment
+            ), Times.Once);
         }
 }
 

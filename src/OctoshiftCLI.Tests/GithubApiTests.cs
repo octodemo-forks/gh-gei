@@ -2115,7 +2115,7 @@ namespace OctoshiftCLI.Tests
         {
             // Arrange
             const string url =
-                $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/alerts?per_page=100";
+                $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/alerts?per_page=100&sort=created&direction=asc";
 
             var codeScanningAlert_1 = $@"
                 {{
@@ -2353,7 +2353,20 @@ namespace OctoshiftCLI.Tests
             AssertCodeScanningData(scanResultsArray[1], JObject.Parse(codeScanningAlert_2));
             AssertCodeScanningData(scanResultsArray[2], JObject.Parse(codeScanningAlert_3));
         }
-        
+
+        [Fact]
+        public async Task GetCodeScanningAlertsData_passes_branch_as_query()
+        {
+            var emptyResult = Array.Empty<JToken>();
+            const string url =
+                $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/alerts?per_page=100&sort=created&direction=asc&ref=main";
+            _githubClientMock.Setup(m => m.GetAllAsync(url)).Returns(emptyResult.ToAsyncEnumerable());
+            
+            await _githubApi.GetCodeScanningAlertsForRepository(GITHUB_ORG, GITHUB_REPO, "main");
+            
+            _githubClientMock.VerifyAll();
+        }
+
         private void AssertCodeScanningData(CodeScanningAlert actual, JToken expectedData)
         {
             actual.Number.Should().Be((int)expectedData["number"]);

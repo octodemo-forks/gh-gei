@@ -840,6 +840,7 @@ namespace OctoshiftCLI
                 DismissedReason = scanningAlert.Value<string>("dismissed_reason"),
                 DismissedByLogin = scanningAlert["dismissed_by"].Any() ? (string)scanningAlert["dismissed_by"]["login"] : null,
                 State = (string)scanningAlert["state"],
+                RuleId = (string)scanningAlert["rule"]["id"],
                 Instance = new CodeScanningAlertInstance
                 {
                     Ref = (string)scanningAlert["most_recent_instance"]["ref"],

@@ -1976,7 +1976,7 @@ namespace OctoshiftCLI.Tests
                     ""dismissed_reason"": null,
                     ""dismissed_comment"": null,
                     ""rule"": {{
-                      ""id"": ""java/sql-injection"",
+                      ""id"": ""java/zipslip"",
                       ""severity"": ""error"",
                       ""description"": ""Query built from user-controlled sources"",
                       ""name"": ""java/sql-injection"",
@@ -2203,6 +2203,7 @@ namespace OctoshiftCLI.Tests
         {
             actual.Number.Should().Be((int)expectedData["number"]);
             actual.State.Should().Be((string)expectedData["state"]);
+            actual.RuleId.Should().Be((string)expectedData["rule"]["id"]);
             
             if (!expectedData.Value<string>("dismissed_at").IsNullOrEmpty())
             {

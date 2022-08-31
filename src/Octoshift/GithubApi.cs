@@ -620,7 +620,7 @@ namespace OctoshiftCLI
                 {
                     state,
                     dismissed_reason = dismissedReason,
-                    dismissedComment = dismissedComment
+                    dismissed_comment = dismissedComment
                 };
             }
             await _client.PatchAsync(url, payload);

@@ -45,8 +45,7 @@ public class CodeScanningServiceTest
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, Ref).Result).Returns(new [] {CodeScanningAnalysisResult});
             _mockSourceGithubApi.Setup(x => x.GetSarifReport(SOURCE_ORG, SOURCE_REPO, analysisId).Result).Returns(SarifResponse);
             
-            var expectedContainer = new SarifContainer
-            {
+            var expectedContainer = new SarifContainer {
                 sarif = SarifResponse,
                 Ref = Ref,
                 CommitSha = CommitSha
@@ -64,10 +63,10 @@ public class CodeScanningServiceTest
         }
         
         [Fact]
-        public async Task migrateAnalyses_migrate_multiple_analysis_in_correct_order()
+        public async Task migrateAnalyses_migrate_multiple_analysis()
         {
             var Ref = "refs/heads/main";
-            var resultExpectedFirst = new CodeScanningAnalysis
+            var analysis1 = new CodeScanningAnalysis
             {
                 Id = 1,
                 Category = "Category",
@@ -75,42 +74,58 @@ public class CodeScanningServiceTest
                 CommitSha = "SHA_1",
                 Ref = Ref
             };
-            var resultExpectedSecond = new CodeScanningAnalysis
+            var analysis2 = new CodeScanningAnalysis
             {
                 Id = 2,
                 Category = "Category",
                 CreatedAt = "2022-03-31T00:00:00Z",
                 CommitSha = "SHA_2",
-                Ref = Ref,
+                Ref = Ref
             };
+
+            const string sarifResponse1 = "SARIF_RESPONSE_1";
+            const string sarifResponse2 = "SARIF_RESPONSE_2";
             
-            var resultExpectedThird = new CodeScanningAnalysis
-            {
-                Id = 3,
-                Category = "Category",
-                CreatedAt = "2022-04-01T00:00:00Z",
-                CommitSha = "SHA_3",
-                Ref = Ref,
-            };
             
             _mockSourceGithubApi.Setup(x => x.GetDefaultBranch(SOURCE_ORG, SOURCE_REPO).Result).Returns(Ref);
-            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, Ref).Result).Returns(new [] {resultExpectedThird, resultExpectedSecond, resultExpectedFirst});
+            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAnalysisForRepository(SOURCE_ORG, SOURCE_REPO, Ref).Result).Returns(new [] {analysis1, analysis2});
+            _mockSourceGithubApi.Setup(x => x.GetSarifReport(SOURCE_ORG, SOURCE_REPO, analysis1.Id).Result).Returns(sarifResponse1);
+            _mockSourceGithubApi.Setup(x => x.GetSarifReport(SOURCE_ORG, SOURCE_REPO, analysis2.Id).Result).Returns(sarifResponse2);
 
-            // Question David: Is there a better way to verify the order of the calls?
-            var callOrder = 1;
-            _mockTargetGithubApi.Setup(x => 
-                x.UploadSarifReport( TARGET_ORG, TARGET_REPO, It.Is<SarifContainer>(c => c.CommitSha == "SHA_1")
-                )).Callback(() => Assert.Equal(1, callOrder++));
-            _mockTargetGithubApi.Setup(x => 
-                x.UploadSarifReport( TARGET_ORG, TARGET_REPO, It.Is<SarifContainer>(c => c.CommitSha == "SHA_2")
-                )).Callback(() => Assert.Equal(2, callOrder++));
-            _mockTargetGithubApi.Setup(x => 
-                x.UploadSarifReport( TARGET_ORG, TARGET_REPO, It.Is<SarifContainer>(c => c.CommitSha == "SHA_3")
-                )).Callback(() => Assert.Equal(3, callOrder++));
-            
             await _service.MigrateAnalyses(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO);
             
-            _mockTargetGithubApi.VerifyAll();
+            _mockTargetGithubApi.Verify(
+                x => x.UploadSarifReport(
+                    It.IsAny<string>(), 
+                    It.IsAny<string>(), 
+                    It.IsAny<SarifContainer>()
+                ), 
+                Times.Exactly(2));
+            
+            _mockTargetGithubApi.Verify(
+                x => x.UploadSarifReport(
+                    It.IsAny<string>(), 
+                    It.IsAny<string>(), 
+                    It.Is<SarifContainer>(c => c.CommitSha == analysis1.CommitSha && c.Ref == Ref && c.sarif == sarifResponse1)
+                ), 
+                Times.Once);
+            
+            _mockTargetGithubApi.Verify(
+                x => x.UploadSarifReport(
+                    It.IsAny<string>(), 
+                    It.IsAny<string>(), 
+                    It.Is<SarifContainer>(c => c.CommitSha == analysis2.CommitSha && c.Ref == Ref && c.sarif == sarifResponse2)
+                ), 
+                Times.Once);
+            
+            _mockTargetGithubApi.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task migrateAlerts_matches_state_of_source_in_target()
+        {
+            // const alert1 = new CodeScanning
+            // _mockSourceGithubApi.Setup(x => x.GetSecretScanningAlertsForRepository())
         }
 }
 

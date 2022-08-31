@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -72,6 +73,49 @@ namespace Octoshift
             }
             
             _log.LogInformation($"Code Scanning Analyses done!\nSuccess-Count: {successCount}\nError-Count: {errorCount}\nOverall: {analyses.Count()}.");
+        }
+
+        public virtual async Task MigrateAlerts(string sourceOrg, string sourceRepo, string targetOrg,
+            string targetRepo, string branch)
+        {
+
+            /*
+            var sourceAlertTask = _sourceGithubApi.GetCodeScanningAlertsForRepository(sourceOrg, sourceRepo, branch);
+            var targetAlertTask = _targetGithubApi.GetCodeScanningAlertsForRepository(targetOrg, targetRepo, branch);
+            await Task.WhenAll(new List<Task>
+                {
+                    sourceAlertTask,
+                    targetAlertTask
+                }
+            );
+
+             var sourceAlerts = sourceAlertTask.Result.ToList();
+             var targetAlerts = targetAlertTask.Result.ToList();
+             */
+             
+            var sourceAlerts = await _sourceGithubApi.GetCodeScanningAlertsForRepository(sourceOrg, sourceRepo, branch);
+            var targetAlerts = (await _targetGithubApi.GetCodeScanningAlertsForRepository(targetOrg, targetRepo, branch)).ToList();
+
+             foreach (var sourceAlert in sourceAlerts)
+             {
+                 var matchingTargetAlert = targetAlerts.Find(targetAlert => sourceAlert.RuleId == targetAlert.RuleId);
+
+                 if (matchingTargetAlert == null)
+                 {
+                     return;
+                 }
+                 
+                 await _targetGithubApi.UpdateCodeScanningAlert(
+                     targetOrg, 
+                     targetRepo, 
+                     matchingTargetAlert.Number, 
+                     sourceAlert.State, 
+                     sourceAlert.DismissedReason, 
+                     sourceAlert.DismissedComment
+                     );
+
+
+             }
         }
     }
 

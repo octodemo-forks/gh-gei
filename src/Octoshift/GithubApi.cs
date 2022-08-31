@@ -703,9 +703,14 @@ namespace OctoshiftCLI
             return (string)data["default_branch"];
         }
         
-        public virtual async Task<IEnumerable<CodeScanningAlert>> GetCodeScanningAlertsForRepository(string org, string repo)
+        public virtual async Task<IEnumerable<CodeScanningAlert>> GetCodeScanningAlertsForRepository(string org, string repo, string branch = null)
         {
-            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/alerts?per_page=100";
+            var queryString = "per_page=100&sort=created&direction=asc";
+            if (!branch.IsNullOrWhiteSpace())
+            {
+                queryString += $"&ref={branch}";
+            }
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/alerts?{queryString}";
             return await _client.GetAllAsync(url)
                 .Select(BuildCodeScanningAlert)
                 .ToListAsync();

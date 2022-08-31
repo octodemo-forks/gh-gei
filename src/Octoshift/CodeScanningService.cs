@@ -14,6 +14,7 @@ namespace Octoshift
         private readonly GithubApi _sourceGithubApi;
         private readonly GithubApi _targetGithubApi;
         private readonly OctoLogger _log;
+        private readonly string[] _allowedStates = { "open", "dismissed" };
 
         public CodeScanningService(GithubApi sourceGithubApi, GithubApi targetGithubApi, OctoLogger octoLogger)
         {
@@ -35,7 +36,6 @@ namespace Octoshift
             
             var successCount = 0;
             var errorCount = 0;
-            
             
             _log.LogVerbose($"Found {analyses.Count()} analyses to migrate.");
             
@@ -79,7 +79,6 @@ namespace Octoshift
             string targetRepo, string branch)
         {
 
-            /*
             var sourceAlertTask = _sourceGithubApi.GetCodeScanningAlertsForRepository(sourceOrg, sourceRepo, branch);
             var targetAlertTask = _targetGithubApi.GetCodeScanningAlertsForRepository(targetOrg, targetRepo, branch);
             await Task.WhenAll(new List<Task>
@@ -91,20 +90,24 @@ namespace Octoshift
 
              var sourceAlerts = sourceAlertTask.Result.ToList();
              var targetAlerts = targetAlertTask.Result.ToList();
-             */
              
-            var sourceAlerts = await _sourceGithubApi.GetCodeScanningAlertsForRepository(sourceOrg, sourceRepo, branch);
-            var targetAlerts = (await _targetGithubApi.GetCodeScanningAlertsForRepository(targetOrg, targetRepo, branch)).ToList();
-
              foreach (var sourceAlert in sourceAlerts)
              {
-                 var matchingTargetAlert = targetAlerts.Find(targetAlert => sourceAlert.RuleId == targetAlert.RuleId);
-
-                 if (matchingTargetAlert == null)
+                 if (!_allowedStates.Contains(sourceAlert.State))
                  {
                      return;
                  }
                  
+                 
+                 var matchingTargetAlert = targetAlerts.Find(targetAlert => areAlertsEqual(sourceAlert, targetAlert));
+
+                 if (matchingTargetAlert == null)
+                 {
+                     _log.LogWarning($"Could not find target alert for ${sourceAlert.Number} (${sourceAlert.Url})");
+                     return;
+                 }
+                 
+                 // Todo: Add this to a queue to parallelize alert updates
                  await _targetGithubApi.UpdateCodeScanningAlert(
                      targetOrg, 
                      targetRepo, 
@@ -113,9 +116,16 @@ namespace Octoshift
                      sourceAlert.DismissedReason, 
                      sourceAlert.DismissedComment
                      );
-
-
              }
+
+        }
+
+        private Boolean areAlertsEqual(CodeScanningAlert sourceAlert, CodeScanningAlert targetAlert)
+        {
+            return sourceAlert.RuleId == targetAlert.RuleId
+                   && sourceAlert.Instance.Ref == targetAlert.Instance.Ref
+                   && sourceAlert.Instance.CommitSha == targetAlert.Instance.CommitSha
+                   && sourceAlert.Instance.Location.Equals(targetAlert.Instance.Location);
         }
     }
 

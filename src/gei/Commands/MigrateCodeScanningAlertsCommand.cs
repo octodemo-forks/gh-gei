@@ -2,7 +2,6 @@ using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Threading.Tasks;
-using Octoshift;
 using OctoshiftCLI.Contracts;
 using OctoshiftCLI.Extensions;
 
@@ -14,16 +13,21 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
         private readonly OctoLogger _log;
         private readonly ISourceGithubApiFactory _sourceGithubApiFactory;
         private readonly ITargetGithubApiFactory _targetGithubApiFactory;
+        private readonly ICodeScanningAlertServiceFactory _codeScanningAlertServiceFactory;
         
         private readonly EnvironmentVariableProvider _environmentVariableProvider;
-        private const string DEFAULT_GITHUB_BASE_URL = "https://github.com";
 
-        public MigrateCodeScanningAlertsCommand(OctoLogger log, ISourceGithubApiFactory sourceGithubApiFactory, ITargetGithubApiFactory targetGithubApiFactory, EnvironmentVariableProvider environmentVariableProvider) : base("migrate-code-scanning-alerts")
+        public MigrateCodeScanningAlertsCommand(OctoLogger log, 
+            ICodeScanningAlertServiceFactory codeScanningAlertServiceFactory,
+            ISourceGithubApiFactory sourceGithubApiFactory,
+            ITargetGithubApiFactory targetGithubApiFactory,
+            EnvironmentVariableProvider environmentVariableProvider) : base("migrate-code-scanning-alerts")
         {
             _log = log;
             _sourceGithubApiFactory = sourceGithubApiFactory;
             _targetGithubApiFactory = targetGithubApiFactory;
             _environmentVariableProvider = environmentVariableProvider;
+            _codeScanningAlertServiceFactory = codeScanningAlertServiceFactory;
 
             Description = "Invokes the GitHub APIs to migrate repo code scanning alert data.";
 
@@ -75,6 +79,12 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
             {
                 IsRequired = false
             };
+            var dryRun = new Option("--dry-run")
+            {
+                IsRequired = false,
+                Description =
+                    "Execute in dry run mode to see how many sarif-reports and alerts would be migrated without actually migrating them."
+            };
 
             AddOption(githubSourceOrg);
             AddOption(sourceRepo);
@@ -88,6 +98,7 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
             AddOption(githubSourcePat);
             AddOption(githubTargetPat);
             AddOption(verbose);
+            AddOption(dryRun);
 
             Handler = CommandHandler.Create<MigrateCodeScanningAlertsCommandArgs>(Invoke);
         }
@@ -106,12 +117,12 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
             var sourceGitHubApi = _sourceGithubApiFactory.Create(args.GhesApiUrl, args.GithubSourcePat);
             var targetGithubApi = _targetGithubApiFactory.Create(args.TargetApiUrl, args.GithubTargetPat);
 
-            var migrationService = new CodeScanningService(sourceGitHubApi, targetGithubApi, _log);
+            var migrationService = _codeScanningAlertServiceFactory.Create(sourceGitHubApi, targetGithubApi);
 
             // As the number of analyses can get massive within pull requests (on created for every CodeQL Action Run),
             // we currently only support migrating analyses from the default branch to prevent hitting API Rate Limits.
             var defaultBranch = await sourceGitHubApi.GetDefaultBranch(args.GithubSourceOrg, args.SourceRepo);
-            await migrationService.MigrateAnalyses( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo, defaultBranch);
+            await migrationService.MigrateAnalyses( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo, defaultBranch, args.DryRun);
             await migrationService.MigrateAlerts( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo, defaultBranch);
             
             _log.LogSuccess($"Code Scanning results completed.");
@@ -180,6 +191,7 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
         public string GhesApiUrl { get; set; }
         public bool NoSslVerify { get; set; }
         public bool Verbose { get; set; }
+        public bool DryRun { get; set; }
         public string GithubSourcePat { get; set; }
         public string GithubTargetPat { get; set; }
     }

@@ -9,14 +9,13 @@ using OctoshiftCLI;
 
 namespace Octoshift
 {
-    public class CodeScanningService
+    public class CodeScanningAlertService
     {
         private readonly GithubApi _sourceGithubApi;
         private readonly GithubApi _targetGithubApi;
         private readonly OctoLogger _log;
-        private readonly string[] _allowedStates = { "open", "dismissed" };
 
-        public CodeScanningService(GithubApi sourceGithubApi, GithubApi targetGithubApi, OctoLogger octoLogger)
+        public CodeScanningAlertService(GithubApi sourceGithubApi, GithubApi targetGithubApi, OctoLogger octoLogger)
         {
             _sourceGithubApi = sourceGithubApi;
             _targetGithubApi = targetGithubApi;
@@ -24,7 +23,7 @@ namespace Octoshift
         }
 
         public virtual async Task MigrateAnalyses(string sourceOrg, string sourceRepo, string targetOrg,
-            string targetRepo, string branch)
+            string targetRepo, string branch, bool dryRun)
         {
             _log.LogInformation($"Migrating Code Scanning Analyses from '{sourceOrg}/{sourceRepo}' to '{targetOrg}/{targetRepo}'");
             
@@ -35,6 +34,17 @@ namespace Octoshift
             var errorCount = 0;
             
             _log.LogVerbose($"Found {analyses.Count()} analyses to migrate.");
+
+            if (dryRun)
+            {
+                _log.LogInformation($"Running in dry-run mode. The following Sarif-Reports would now be downloaded from '{sourceOrg}/{sourceRepo}' and then uploaded to '{targetOrg}/{targetRepo}':");
+                foreach (var analysis in analyses)
+                {
+                    _log.LogInformation($"Report of Analysis with Id '{analysis.Id}' from {analysis.CreatedAt}.");
+                    
+                }
+                return;
+            }
             
             foreach (var analysis in analyses)
             {
@@ -43,9 +53,12 @@ namespace Octoshift
                 try
                 {
                     await _targetGithubApi.UploadSarifReport(targetOrg, targetRepo,
-                        new SarifContainer { sarif = sarifReport, Ref = analysis.Ref, CommitSha = analysis.CommitSha });
-                    ++successCount;
+                        new SarifContainer
+                        {
+                            sarif = sarifReport, Ref = analysis.Ref, CommitSha = analysis.CommitSha
+                        });
                     _log.LogInformation($"Successfully Migrated report for analysis {analysis.Id}");
+                    ++successCount;
                 }
                 catch (HttpRequestException httpException)
                 {
@@ -93,7 +106,7 @@ namespace Octoshift
              
              foreach (var sourceAlert in sourceAlerts)
              {
-                 if (!_allowedStates.Contains(sourceAlert.State))
+                 if (!CodeScanningAlerts.IsOpenOrDismissed(sourceAlert.State))
                  {
                      _log.LogVerbose($"Skipping alert {sourceAlert.Number} ({sourceAlert.Url}) has state '{sourceAlert.State}' is not migratable.");
                      continue;

@@ -1934,7 +1934,7 @@ namespace OctoshiftCLI.Tests
             const string url = $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}";
 
             _githubClientMock
-                .Setup(m => m.GetAsync(url))
+                .Setup(m => m.GetAsync(url, null))
                 .ReturnsAsync("{ \"default_branch\": \"main\" }");
             
             var result = await _githubApi.GetDefaultBranch(GITHUB_ORG, GITHUB_REPO);
@@ -2104,10 +2104,10 @@ namespace OctoshiftCLI.Tests
 
                 await Task.CompletedTask;
             }
-            _githubClientMock.Setup(m => m.GetAllAsync(url)).Returns(GetAllPages);
+            _githubClientMock.Setup(m => m.GetAllAsync(url, null)).Returns(GetAllPages);
             
             await _githubApi.GetCodeScanningAnalysisForRepository(GITHUB_ORG, GITHUB_REPO, "main");
-            _githubClientMock.Verify(m => m.GetAllAsync(url));
+            _githubClientMock.Verify(m => m.GetAllAsync(url, null));
         }
         
         [Fact]
@@ -2340,7 +2340,7 @@ namespace OctoshiftCLI.Tests
             }
 
             _githubClientMock
-                .Setup(m => m.GetAllAsync(url))
+                .Setup(m => m.GetAllAsync(url, null))
                 .Returns(GetAllPages);
             
             // Act
@@ -2360,7 +2360,7 @@ namespace OctoshiftCLI.Tests
             var emptyResult = Array.Empty<JToken>();
             const string url =
                 $"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/code-scanning/alerts?per_page=100&sort=created&direction=asc&ref=main";
-            _githubClientMock.Setup(m => m.GetAllAsync(url)).Returns(emptyResult.ToAsyncEnumerable());
+            _githubClientMock.Setup(m => m.GetAllAsync(url, null)).Returns(emptyResult.ToAsyncEnumerable());
             
             await _githubApi.GetCodeScanningAlertsForRepository(GITHUB_ORG, GITHUB_REPO, "main");
             
@@ -2808,7 +2808,7 @@ namespace OctoshiftCLI.Tests
             await _githubApi.UploadSarifReport(GITHUB_ORG, GITHUB_REPO, sarifContainer);
 
             // Assert
-            _githubClientMock.Verify(m => m.PostAsync(url, It.Is<object>(x => x.ToJson() == expectedPayload.ToJson())));
+            _githubClientMock.Verify(m => m.PostAsync(url, It.Is<object>(x => x.ToJson() == expectedPayload.ToJson()), null));
         }
         
         private string Compact(string source) =>

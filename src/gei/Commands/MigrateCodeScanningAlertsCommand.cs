@@ -122,8 +122,9 @@ namespace OctoshiftCLI.GithubEnterpriseImporter.Commands
             // As the number of analyses can get massive within pull requests (on created for every CodeQL Action Run),
             // we currently only support migrating analyses from the default branch to prevent hitting API Rate Limits.
             var defaultBranch = await sourceGitHubApi.GetDefaultBranch(args.GithubSourceOrg, args.SourceRepo);
+            _log.LogInformation($"Found default branch: {defaultBranch} - migrating code scanning alerts only of this branch.");
             await migrationService.MigrateAnalyses( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo, defaultBranch, args.DryRun);
-            await migrationService.MigrateAlerts( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo, defaultBranch);
+            await migrationService.MigrateAlerts( args.GithubSourceOrg, args.SourceRepo, args.GithubTargetOrg, args.TargetRepo, defaultBranch, args.DryRun);
             
             _log.LogSuccess($"Code Scanning results completed.");
         }

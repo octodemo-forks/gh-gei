@@ -40,8 +40,7 @@ namespace Octoshift
                 _log.LogInformation($"Running in dry-run mode. The following Sarif-Reports would now be downloaded from '{sourceOrg}/{sourceRepo}' and then uploaded to '{targetOrg}/{targetRepo}':");
                 foreach (var analysis in analyses)
                 {
-                    _log.LogInformation($"Report of Analysis with Id '{analysis.Id}' from {analysis.CreatedAt}.");
-                    
+                    _log.LogInformation($"    Report of Analysis with Id '{analysis.Id}' created at {analysis.CreatedAt}.");
                 }
                 return;
             }
@@ -86,11 +85,16 @@ namespace Octoshift
         }
 
         public virtual async Task MigrateAlerts(string sourceOrg, string sourceRepo, string targetOrg,
-            string targetRepo, string branch)
+            string targetRepo, string branch, bool dryRun)
         {
-
+            
             var sourceAlertTask = _sourceGithubApi.GetCodeScanningAlertsForRepository(sourceOrg, sourceRepo, branch);
-            var targetAlertTask = _targetGithubApi.GetCodeScanningAlertsForRepository(targetOrg, targetRepo, branch);
+            
+            // no reason to call the target on a dry run - there will be no alerts 
+            var targetAlertTask = dryRun ? 
+                Task.FromResult(Enumerable.Empty<CodeScanningAlert>()) :
+                _targetGithubApi.GetCodeScanningAlertsForRepository(targetOrg, targetRepo, branch);
+            
             await Task.WhenAll(new List<Task>
                 {
                     sourceAlertTask,
@@ -108,7 +112,14 @@ namespace Octoshift
              {
                  if (!CodeScanningAlerts.IsOpenOrDismissed(sourceAlert.State))
                  {
-                     _log.LogVerbose($"Skipping alert {sourceAlert.Number} ({sourceAlert.Url}) has state '{sourceAlert.State}' is not migratable.");
+                     _log.LogInformation($"  skipping alert {sourceAlert.Number} ({sourceAlert.Url}) because state '{sourceAlert.State}' is not migratable.");
+                     continue;
+                 }
+
+                 if (dryRun)
+                 {
+                     _log.LogInformation($"  running in dry-run mode. Would have tried to find target alert for {sourceAlert.Number} ({sourceAlert.Url}) and set state '{sourceAlert.State}'");
+                     successCount++;
                      continue;
                  }
                  

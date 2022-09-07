@@ -193,7 +193,7 @@ public class CodeScanningServiceTest
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert});
             
-            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
+            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main", false);
             
             _mockTargetGithubApi.Verify(x => x.UpdateCodeScanningAlert(
                 TARGET_ORG, 
@@ -264,7 +264,7 @@ public class CodeScanningServiceTest
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert2, targetAlert1});
             
-            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
+            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main", false);
             
             _mockTargetGithubApi.Verify(x => x.UpdateCodeScanningAlert(
                 TARGET_ORG, 
@@ -344,7 +344,7 @@ public class CodeScanningServiceTest
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert2, targetAlert1});
             
-            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
+            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main", false);
             
             _mockTargetGithubApi.Verify(x => x.UpdateCodeScanningAlert(
                 TARGET_ORG, 
@@ -428,7 +428,7 @@ public class CodeScanningServiceTest
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert2, targetAlert1});
             
-            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
+            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main", false);
             
             _mockTargetGithubApi.Verify(x => x.UpdateCodeScanningAlert(
                 TARGET_ORG, 
@@ -538,7 +538,7 @@ public class CodeScanningServiceTest
             _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert1, sourceAlert2, sourceAlert3});
             _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert1});
             
-            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main");
+            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main", false);
             
             _mockTargetGithubApi.Verify(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main"), Times.Once);
             _mockTargetGithubApi.Verify(x => x.UpdateCodeScanningAlert(
@@ -551,6 +551,53 @@ public class CodeScanningServiceTest
             ), Times.Once);
             _mockTargetGithubApi.VerifyNoOtherCalls();
             
+        }
+        
+        [Fact]
+        public async Task migrateAlerts_dry_run_will_not_adjust_any_alerts_on_target()
+        {
+            var CommitSha = "SHA_1";
+            var Ref = "refs/heads/main";
+            var lastInstance = new CodeScanningAlertInstance
+            {
+                Ref = Ref,
+                State = "open",
+                AnalysisKey = "123456",
+                CommitSha = CommitSha,
+                Location = new CodeScanningAlertLocation {
+                    Path = "path/to/file.cs",
+                    StartLine = 3,
+                    StartColumn = 4,
+                    EndLine = 6,
+                    EndColumn = 25
+                }
+            };
+
+            var sourceAlert = new CodeScanningAlert
+            {
+                Number = 1,
+                RuleId = "java/rule",
+                State = "dismissed",
+                DismissedAt = "2020-01-01T00:00:00Z",
+                DismissedComment = "I was dismissed!",
+                DismissedReason = "false positive",
+                Instance = lastInstance
+            };
+            
+            var targetAlert = new CodeScanningAlert { Number = 2, State = "open", Instance = CopyInstance(lastInstance), RuleId = "java/rule"};
+            _mockSourceGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(SOURCE_ORG, SOURCE_REPO, "main").Result).Returns(new [] {sourceAlert});
+            _mockTargetGithubApi.Setup(x => x.GetCodeScanningAlertsForRepository(TARGET_ORG, TARGET_REPO, "main").Result).Returns(new [] {targetAlert});
+            
+            await _alertService.MigrateAlerts(SOURCE_ORG, SOURCE_REPO, TARGET_ORG, TARGET_REPO, "main", true);
+            
+            _mockTargetGithubApi.Verify(x => x.UpdateCodeScanningAlert(
+                TARGET_ORG, 
+                TARGET_REPO, 
+                It.IsAny<int>(), 
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>()
+            ), Times.Never);
         }
 
         // Avoid having referential equal instances to have real use case tests

@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using Octoshift;
 using Octoshift.Models;
 using OctoshiftCLI.Extensions;
 using OctoshiftCLI.Models;
@@ -17,6 +18,8 @@ namespace OctoshiftCLI
         private readonly GithubClient _client;
         private readonly string _apiUrl;
         private readonly RetryPolicy _retryPolicy;
+
+        private const string INSUFFICIENT_PERMISSIONS_HELP_MESSAGE = ". Please check that (a) you are an organization owner or you have been granted the migrator role and (b) your personal access token has the correct scopes. For more information, see https://docs.github.com/en/migrations/using-github-enterprise-importer/preparing-to-migrate-with-github-enterprise-importer/managing-access-for-github-enterprise-importer.";
 
         public GithubApi(GithubClient client, string apiUrl, RetryPolicy retryPolicy)
         {
@@ -63,7 +66,7 @@ namespace OctoshiftCLI
             await _client.DeleteAsync(url);
         }
 
-        public virtual async Task<string> CreateTeam(string org, string teamName)
+        public virtual async Task<(string Id, string Slug)> CreateTeam(string org, string teamName)
         {
             var url = $"{_apiUrl}/orgs/{org}/teams";
             var payload = new { name = teamName, privacy = "closed" };
@@ -71,15 +74,15 @@ namespace OctoshiftCLI
             var response = await _client.PostAsync(url, payload);
             var data = JObject.Parse(response);
 
-            return (string)data["id"];
+            return ((string)data["id"], (string)data["slug"]);
         }
 
-        public virtual async Task<IEnumerable<string>> GetTeams(string org)
+        public virtual async Task<IEnumerable<(string Name, string Slug)>> GetTeams(string org)
         {
             var url = $"{_apiUrl}/orgs/{org}/teams";
 
             return await _client.GetAllAsync(url)
-                .Select(t => (string)t["name"])
+                .Select(t => ((string)t["name"], (string)t["slug"]))
                 .ToListAsync();
         }
 
@@ -103,6 +106,34 @@ namespace OctoshiftCLI
             var url = $"{_apiUrl}/orgs/{org}/teams/{teamSlug}/memberships/{member}";
 
             await _retryPolicy.HttpRetry(() => _client.DeleteAsync(url), _ => true);
+        }
+
+        public virtual async Task<bool> DoesRepoExist(string org, string repo)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}";
+            try
+            {
+                await _client.GetNonSuccessAsync(url, HttpStatusCode.NotFound);
+                return false;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.OK)
+            {
+                return true;
+            }
+        }
+
+        public virtual async Task<bool> DoesOrgExist(string org)
+        {
+            var url = $"{_apiUrl}/orgs/{org}";
+            try
+            {
+                await _client.GetNonSuccessAsync(url, HttpStatusCode.NotFound);
+                return false;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.OK)
+            {
+                return true;
+            }
         }
 
         public virtual async Task AddTeamSync(string org, string teamName, string groupId, string groupName, string groupDesc)
@@ -139,10 +170,7 @@ namespace OctoshiftCLI
 
             var response = await _retryPolicy.Retry(async () =>
             {
-                var httpResponse = await _client.PostAsync(url, payload);
-                var data = JObject.Parse(httpResponse);
-
-                EnsureSuccessGraphQLResponse(data);
+                var data = await _client.PostGraphQLAsync(url, payload);
 
                 return (string)data["data"]["organization"]["id"];
             });
@@ -164,10 +192,7 @@ namespace OctoshiftCLI
 
             var response = await _retryPolicy.Retry(async () =>
             {
-                var httpResponse = await _client.PostAsync(url, payload);
-                var data = JObject.Parse(httpResponse);
-
-                EnsureSuccessGraphQLResponse(data);
+                var data = await _client.PostGraphQLAsync(url, payload);
 
                 return (string)data["data"]["enterprise"]["id"];
             });
@@ -199,10 +224,15 @@ namespace OctoshiftCLI
                 operationName = "createMigrationSource"
             };
 
-            var response = await _client.PostAsync(url, payload);
-            var data = JObject.Parse(response);
-
-            return (string)data["data"]["createMigrationSource"]["migrationSource"]["id"];
+            try
+            {
+                var data = await _client.PostGraphQLAsync(url, payload);
+                return (string)data["data"]["createMigrationSource"]["migrationSource"]["id"];
+            }
+            catch (OctoshiftCliException ex) when (ex.Message.Contains("not have the correct permissions to execute"))
+            {
+                throw new OctoshiftCliException(ex.Message + INSUFFICIENT_PERMISSIONS_HELP_MESSAGE, ex);
+            }
         }
 
         public virtual async Task<string> CreateBbsMigrationSource(string orgId)
@@ -225,10 +255,15 @@ namespace OctoshiftCLI
                 operationName = "createMigrationSource"
             };
 
-            var response = await _client.PostAsync(url, payload);
-            var data = JObject.Parse(response);
-
-            return (string)data["data"]["createMigrationSource"]["migrationSource"]["id"];
+            try
+            {
+                var data = await _client.PostGraphQLAsync(url, payload);
+                return (string)data["data"]["createMigrationSource"]["migrationSource"]["id"];
+            }
+            catch (OctoshiftCliException ex) when (ex.Message.Contains("not have the correct permissions to execute"))
+            {
+                throw new OctoshiftCliException(ex.Message + INSUFFICIENT_PERMISSIONS_HELP_MESSAGE, ex);
+            }
         }
 
         public virtual async Task<string> CreateGhecMigrationSource(string orgId)
@@ -251,10 +286,15 @@ namespace OctoshiftCLI
                 operationName = "createMigrationSource"
             };
 
-            var response = await _client.PostAsync(url, payload);
-            var data = JObject.Parse(response);
-
-            return (string)data["data"]["createMigrationSource"]["migrationSource"]["id"];
+            try
+            {
+                var data = await _client.PostGraphQLAsync(url, payload);
+                return (string)data["data"]["createMigrationSource"]["migrationSource"]["id"];
+            }
+            catch (OctoshiftCliException ex) when (ex.Message.Contains("not have the correct permissions to execute"))
+            {
+                throw new OctoshiftCliException(ex.Message + INSUFFICIENT_PERMISSIONS_HELP_MESSAGE, ex);
+            }
         }
 
         public virtual async Task<string> StartMigration(string migrationSourceId, string sourceRepoUrl, string orgId, string repo, string sourceToken, string targetToken, string gitArchiveUrl = null, string metadataArchiveUrl = null, bool skipReleases = false, bool lockSource = false)
@@ -323,10 +363,7 @@ namespace OctoshiftCLI
                 operationName = "startRepositoryMigration"
             };
 
-            var response = await _client.PostAsync(url, payload);
-            var data = JObject.Parse(response);
-
-            EnsureSuccessGraphQLResponse(data);
+            var data = await _client.PostGraphQLAsync(url, payload);
 
             return (string)data["data"]["startRepositoryMigration"]["repositoryMigration"]["id"];
         }
@@ -367,10 +404,7 @@ namespace OctoshiftCLI
                 operationName = "startOrganizationMigration"
             };
 
-            var response = await _client.PostAsync(url, payload);
-            var data = JObject.Parse(response);
-
-            EnsureSuccessGraphQLResponse(data);
+            var data = await _client.PostGraphQLAsync(url, payload);
 
             return (string)data["data"]["startOrganizationMigration"]["orgMigration"]["id"];
         }
@@ -386,10 +420,7 @@ namespace OctoshiftCLI
 
             var response = await _retryPolicy.Retry(async () =>
             {
-                var httpResponse = await _client.PostAsync(url, payload);
-                var data = JObject.Parse(httpResponse);
-
-                EnsureSuccessGraphQLResponse(data);
+                var data = await _client.PostGraphQLAsync(url, payload);
 
                 return (
                     State: (string)data["data"]["node"]["state"],
@@ -419,26 +450,24 @@ namespace OctoshiftCLI
             );
         }
 
-        public virtual async Task<(string State, string RepositoryName, string FailureReason)> GetMigration(string migrationId)
+        public virtual async Task<(string State, string RepositoryName, string FailureReason, string MigrationLogUrl)> GetMigration(string migrationId)
         {
             var url = $"{_apiUrl}/graphql";
 
             var query = "query($id: ID!)";
-            var gql = "node(id: $id) { ... on Migration { id, sourceUrl, migrationSource { name }, state, failureReason, repositoryName } }";
+            var gql = "node(id: $id) { ... on Migration { id, sourceUrl, migrationLogUrl, migrationSource { name }, state, failureReason, repositoryName } }";
 
             var payload = new { query = $"{query} {{ {gql} }}", variables = new { id = migrationId } };
 
             var response = await _retryPolicy.Retry(async () =>
             {
-                var httpResponse = await _client.PostAsync(url, payload);
-                var data = JObject.Parse(httpResponse);
-
-                EnsureSuccessGraphQLResponse(data);
+                var data = await _client.PostGraphQLAsync(url, payload);
 
                 return (
                     State: (string)data["data"]["node"]["state"],
                     RepositoryName: (string)data["data"]["node"]["repositoryName"],
-                    FailureReason: (string)data["data"]["node"]["failureReason"]);
+                    FailureReason: (string)data["data"]["node"]["failureReason"],
+                    MigrationLogUrl: (string)data["data"]["node"]["migrationLogUrl"]);
             });
 
             return response.Outcome == OutcomeType.Failure
@@ -465,10 +494,7 @@ namespace OctoshiftCLI
 
             var response = await _retryPolicy.Retry(async () =>
             {
-                var httpResponse = await _client.PostAsync(url, payload);
-                var data = JObject.Parse(httpResponse);
-
-                EnsureSuccessGraphQLResponse(data);
+                var data = await _client.PostGraphQLAsync(url, payload);
 
                 var nodes = (JArray)data["data"]["organization"]["repositoryMigrations"]["nodes"];
 
@@ -526,8 +552,7 @@ namespace OctoshiftCLI
 
             try
             {
-                var response = await _client.PostAsync(url, payload);
-                var data = JObject.Parse(response);
+                var data = await _client.PostGraphQLAsync(url, payload);
 
                 return (bool)data["data"]["grantMigratorRole"]["success"];
             }
@@ -553,8 +578,7 @@ namespace OctoshiftCLI
 
             try
             {
-                var response = await _client.PostAsync(url, payload);
-                var data = JObject.Parse(response);
+                var data = await _client.PostGraphQLAsync(url, payload);
 
                 return (bool)data["data"]["revokeMigratorRole"]["success"];
             }
@@ -610,19 +634,26 @@ namespace OctoshiftCLI
             return (int)data["id"];
         }
 
-        public virtual async Task<string> GetArchiveMigrationStatus(string org, int migrationId)
+        public virtual async Task<string> GetArchiveMigrationStatus(string org, int archiveId)
         {
-            var url = $"{_apiUrl}/orgs/{org}/migrations/{migrationId}";
+            var url = $"{_apiUrl}/orgs/{org}/migrations/{archiveId}";
 
-            var response = await _client.GetAsync(url);
-            var data = JObject.Parse(response);
+            var response = await _retryPolicy.RetryOnResult(async () =>
+            {
+                var httpResponse = await _client.GetAsync(url);
+                var data = JObject.Parse(httpResponse);
 
-            return (string)data["state"];
+                return (string)data["state"];
+            }, ArchiveMigrationStatus.Failed);
+
+            return response.Outcome == OutcomeType.Failure
+                ? throw new OctoshiftCliException($"Archive generation failed for id: {archiveId}")
+                : response.Result;
         }
 
-        public virtual async Task<string> GetArchiveMigrationUrl(string org, int migrationId)
+        public virtual async Task<string> GetArchiveMigrationUrl(string org, int archiveId)
         {
-            var url = $"{_apiUrl}/orgs/{org}/migrations/{migrationId}/archive";
+            var url = $"{_apiUrl}/orgs/{org}/migrations/{archiveId}/archive";
 
             var response = await _client.GetNonSuccessAsync(url, HttpStatusCode.Found);
             return response;
@@ -647,7 +678,7 @@ namespace OctoshiftCLI
 
             return response.Outcome == OutcomeType.Failure
                 ? throw new OctoshiftCliException($"Failed to retrieve the list of mannequins", response.FinalException)
-                : (IEnumerable<Mannequin>)response.Result;
+                : response.Result;
         }
 
         public virtual async Task<string> GetUserId(string login)
@@ -661,10 +692,9 @@ namespace OctoshiftCLI
             };
 
             // TODO: Add retry logic here, but need to inspect the actual error message and differentiate between transient failure vs user doesn't exist (only retry on failure)
-            var response = await _client.PostAsync(url, payload);
-            var data = JObject.Parse(response);
+            var data = await _client.PostGraphQLAsync(url, payload);
 
-            return data["data"]["user"].Any() ? (string)data["data"]["user"]["id"] : null;
+            return (string)data["data"]["user"]["id"];
         }
 
         public virtual async Task<MannequinReclaimResult> ReclaimMannequin(string orgId, string mannequinId, string targetUserId)
@@ -736,6 +766,119 @@ namespace OctoshiftCLI
             await _client.PatchAsync(url, payload);
         }
 
+        public virtual async Task<IEnumerable<CodeScanningAnalysis>> GetCodeScanningAnalysisForRepository(string org, string repo, string branch = null)
+        {
+            var queryString = "per_page=100&sort=created&direction=asc";
+            if (branch.HasValue())
+            {
+                queryString += $"&ref={branch}";
+            }
+
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/analyses?{queryString}";
+
+            try
+            {
+                return await _client.GetAllAsync(url)
+                    .Select(BuildCodeScanningAnalysis)
+                    .ToListAsync();
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound && ex.Message.Contains("no analysis found"))
+            {
+                return Enumerable.Empty<CodeScanningAnalysis>();
+            }
+        }
+
+        public virtual async Task UpdateCodeScanningAlert(string org, string repo, int alertNumber, string state, string dismissedReason = null, string dismissedComment = null)
+        {
+            if (!CodeScanningAlertState.IsOpenOrDismissed(state))
+            {
+                throw new ArgumentException($"Invalid value for {nameof(state)}");
+            }
+
+            if (CodeScanningAlertState.IsDismissed(state) && !CodeScanningAlertState.IsValidDismissedReason(dismissedReason))
+            {
+                throw new ArgumentException($"Invalid value for {nameof(dismissedReason)}");
+            }
+
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/alerts/{alertNumber}";
+
+            var payload = state == "open"
+                ? (new { state })
+                : (object)(new
+                {
+                    state,
+                    dismissed_reason = dismissedReason,
+                    dismissed_comment = dismissedComment ?? string.Empty
+                });
+            await _client.PatchAsync(url, payload);
+        }
+
+        public virtual async Task<string> GetSarifReport(string org, string repo, int analysisId)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/analyses/{analysisId}";
+            // Need change the Accept header to application/sarif+json otherwise it will just be the analysis record
+            var headers = new Dictionary<string, string>() { { "accept", "application/sarif+json" } };
+            return await _client.GetAsync(url, headers);
+        }
+
+        public virtual async Task<string> UploadSarifReport(string org, string repo, string sarifReport, string commitSha, string sarifRef)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/sarifs";
+            var payload = new
+            {
+                commit_sha = commitSha,
+                sarif = StringCompressor.GZipAndBase64String(sarifReport),
+                @ref = sarifRef
+            };
+
+            var response = await _retryPolicy.HttpRetry(async () => await _client.PostAsync(url, payload),
+                                                        ex => ex.StatusCode == HttpStatusCode.BadGateway);
+            var data = JObject.Parse(response);
+
+            return (string)data["id"];
+        }
+
+        public virtual async Task<SarifProcessingStatus> GetSarifProcessingStatus(string org, string repo, string sarifId)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/sarifs/{sarifId}";
+            var response = await _client.GetAsync(url);
+            var data = JObject.Parse(response);
+
+            var errors = data["errors"]?.ToObject<string[]>() ?? Array.Empty<string>();
+            return new() { Status = (string)data["processing_status"], Errors = errors };
+        }
+
+        public virtual async Task<string> GetDefaultBranch(string org, string repo)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}";
+
+            var response = await _client.GetAsync(url);
+            var data = JObject.Parse(response);
+
+            return (string)data["default_branch"];
+        }
+
+        public virtual async Task<IEnumerable<CodeScanningAlert>> GetCodeScanningAlertsForRepository(string org, string repo, string branch = null)
+        {
+            var queryString = "per_page=100&sort=created&direction=asc";
+            if (branch.HasValue())
+            {
+                queryString += $"&ref={branch}";
+            }
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/alerts?{queryString}";
+            return await _client.GetAllAsync(url)
+                .Select(BuildCodeScanningAlert)
+                .ToListAsync();
+        }
+
+        public virtual async Task<IEnumerable<CodeScanningAlertInstance>> GetCodeScanningAlertInstances(string org, string repo, int alertNumber)
+        {
+            var url = $"{_apiUrl}/repos/{org}/{repo}/code-scanning/alerts/{alertNumber}/instances?per_page=100";
+            return await _client.GetAllAsync(url)
+                .Select(BuildCodeScanningAlertInstance)
+                .ToListAsync();
+        }
+
         public virtual async Task<string> GetEnterpriseServerVersion()
         {
             var url = $"{_apiUrl}/meta";
@@ -792,16 +935,6 @@ namespace OctoshiftCLI
             };
         }
 
-        private void EnsureSuccessGraphQLResponse(JObject response)
-        {
-            if (response.TryGetValue("errors", out var jErrors) && jErrors is JArray { Count: > 0 } errors)
-            {
-                var error = (JObject)errors[0];
-                var errorMessage = error.TryGetValue("message", out var jMessage) ? (string)jMessage : null;
-                throw new OctoshiftCliException($"{errorMessage ?? "UNKNOWN"}");
-            }
-        }
-
         private static GithubSecretScanningAlert BuildSecretScanningAlert(JToken secretAlert) =>
             new()
             {
@@ -821,6 +954,41 @@ namespace OctoshiftCLI
                 StartColumn = (int)alertLocation["details"]["start_column"],
                 EndColumn = (int)alertLocation["details"]["end_column"],
                 BlobSha = (string)alertLocation["details"]["blob_sha"],
+            };
+
+        private static CodeScanningAnalysis BuildCodeScanningAnalysis(JToken codescan) =>
+            new()
+            {
+                Id = (int)codescan["id"],
+                CommitSha = (string)codescan["commit_sha"],
+                Ref = (string)codescan["ref"],
+                CreatedAt = (string)codescan["created_at"],
+            };
+
+        private static CodeScanningAlert BuildCodeScanningAlert(JToken scanningAlert) =>
+
+            new()
+            {
+                Number = (int)scanningAlert["number"],
+                Url = (string)scanningAlert["url"],
+                DismissedAt = scanningAlert.Value<string>("dismissed_at"),
+                DismissedComment = scanningAlert.Value<string>("dismissed_comment"),
+                DismissedReason = scanningAlert.Value<string>("dismissed_reason"),
+                State = (string)scanningAlert["state"],
+                RuleId = (string)scanningAlert["rule"]["id"],
+                MostRecentInstance = BuildCodeScanningAlertInstance(scanningAlert["most_recent_instance"]),
+            };
+
+        private static CodeScanningAlertInstance BuildCodeScanningAlertInstance(JToken scanningAlertInstance) =>
+            new()
+            {
+                Ref = (string)scanningAlertInstance["ref"],
+                CommitSha = (string)scanningAlertInstance["commit_sha"],
+                Path = (string)scanningAlertInstance["location"]["path"],
+                StartLine = (int)scanningAlertInstance["location"]["start_line"],
+                EndLine = (int)scanningAlertInstance["location"]["end_line"],
+                StartColumn = (int)scanningAlertInstance["location"]["start_column"],
+                EndColumn = (int)scanningAlertInstance["location"]["end_column"]
             };
     }
 }
